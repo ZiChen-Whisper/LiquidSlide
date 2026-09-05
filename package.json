@@ -1,0 +1,47 @@
+{
+  "name": "liquidslide",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Liquid Glass for PowerPoint",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:com": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-com.ps1",
+    "build:all": "npm run build && npm run build:com",
+    "dev-server": "webpack serve --mode development",
+    "lint": "eslint . --max-warnings 0",
+    "install:addin": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/install-com-addin.ps1",
+    "uninstall:addin": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/uninstall-com-addin.ps1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "start": "npm run build:all && npm run install:addin"
+  },
+  "dependencies": {
+    "@liquid-dom/core": "0.1.1",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.35.0",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "@webgpu/types": "0.1.64",
+    "css-loader": "7.1.2",
+    "copy-webpack-plugin": "13.0.1",
+    "eslint": "9.35.0",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "html-webpack-plugin": "5.6.4",
+    "style-loader": "4.0.0",
+    "ts-loader": "9.5.4",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.42.0",
+    "vitest": "3.2.4",
+    "webpack": "5.101.3",
+    "webpack-cli": "6.0.1",
+    "webpack-dev-server": "5.2.2"
+  }
+}
