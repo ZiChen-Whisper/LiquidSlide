@@ -201,7 +201,13 @@ export default function App() {
       <footer>
         <p className="status" role="status">{status}</p>
         <div className="footer-actions">
-      <button className="secondary shadow-action" disabled={busy || !available} onClick={() => void addShadow()}>添加图形阴影</button>
+      <button className="secondary shadow-action" type="button" title="添加图形阴影" aria-label="添加图形阴影" disabled={busy || !available} onClick={() => void addShadow()}>
+          <svg viewBox="0 0 28 28" width="26" height="26" fill="none" aria-hidden="true">
+            <rect x="7" y="10" width="17" height="13" rx="4" fill="currentColor" opacity=".08" />
+            <rect x="6" y="9" width="17" height="13" rx="4" fill="currentColor" opacity=".14" />
+            <rect x="4" y="5" width="17" height="13" rx="4" fill="#eef5f0" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+        </button>
         <button className="primary" type="button" disabled={busy || !available} onClick={() => void capture(true)}>{busy ? "处理中…" : "应用效果"}<span aria-hidden="true">↗</span></button>
         </div>
       </footer>

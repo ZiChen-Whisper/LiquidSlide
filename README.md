@@ -85,3 +85,9 @@ npm run uninstall:addin
 截至 2026-09-05 核查，上游根目录及 core 包无明确许可证，独立 layout 包的 MIT 不能推广到整个渲染核心。我们不在本仓库提交上游代码、打包 JS 或 DLL，也不在权限明确前分发包含它的安装包。
 
 LiquidSlide 原创代码：[MIT](LICENSE)。依赖和图片分别遵循各自授权，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 权利人联系与处理
+
+本项目尊重第三方作者及权利人的合法权益。若您认为本项目中的代码、素材、署名或使用方式涉及您的权利，请通过 [GitHub Issues](https://github.com/ZiChen-Whisper/LiquidSlide/issues/new) 联系维护者，说明涉及的文件或版本、原始作品链接、权利依据及希望采取的处理方式。请勿在公开 Issue 中提交敏感个人资料。
+
+维护者收到通知后将核实并及时沟通；必要时停止相关分发、移除相关内容、补充署名或调整实现。本说明不构成第三方授权、不免除应履行的许可义务，也不表示上游作者认可或背书本项目。`@liquid-dom/core` 的许可状态仍以 [第三方声明](THIRD_PARTY_NOTICES.md) 为准。

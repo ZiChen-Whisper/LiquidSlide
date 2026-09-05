@@ -70,6 +70,7 @@ footer::before { content: ""; position: absolute; inset: 0; z-index: -1; backgro
 footer .status { max-height: 48px; overflow-y: auto; }
 .shadow-action { display: block; margin: 12px 0 0 auto; }
 
-.footer-actions { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
-.footer-actions .shadow-action { margin: 0; font-size: 11px; padding: 9px 10px; }
+.footer-actions { display: grid; grid-template-columns: 45px 1fr; align-items: stretch; gap: 10px; }
+.footer-actions .shadow-action { display: grid; place-items: center; width: 45px; height: 45px; margin: 0; padding: 0; border-radius: 14px; }
+.footer-actions .primary { height: 45px; min-height: 45px; }
 header p { letter-spacing: 0; }
