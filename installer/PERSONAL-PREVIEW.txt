@@ -1,0 +1,14 @@
+LiquidSlide 0.1.0 - PERSONAL PREVIEW ONLY
+
+For the maintainer's own local evaluation. Not a public release.
+The upstream Liquid DOM core redistribution license is pending author clarification.
+Do not upload, forward or redistribute this installer.
+
+Requirements:
+- Windows x64 and 64-bit desktop Microsoft PowerPoint
+- .NET Framework 4.8
+- Microsoft Edge WebView2 Evergreen Runtime and WebGPU-capable graphics
+
+Save presentations and close PowerPoint before installing or uninstalling.
+The installer is unsigned. Publisher code signing and clean-machine compatibility
+verification remain pending. This build does not automatically download prerequisites.

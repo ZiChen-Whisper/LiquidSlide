@@ -1,12 +1,12 @@
 # Release preparation — 0.1.0 (not released)
 
-No tag, GitHub Release, or public installer has been created.
+No tag, GitHub Release, or public installer has been created. A local personal-preview EXE is now built for the maintainer only; do not redistribute it. The maintainer has contacted the upstream author and is awaiting a response.
 
 ## Planned distribution
 
-One per-user Windows x64 EXE installer, built with Inno Setup 6 from `installer/LiquidSlide.iss`. It places the COM DLL, WebView2 loader and bundled web UI under `%LOCALAPPDATA%\Programs\LiquidSlide`, registers the two COM classes and PowerPoint add-in under HKCU, and provides an uninstaller. Users do not need Node.js or a .NET SDK. PowerPoint must be closed during installation, upgrades and removal.
+One per-user Windows x64 EXE installer, built with Inno Setup 7.1.0 (local non-commercial personal build) from `installer/LiquidSlide.iss`. It places the COM DLL, WebView2 loader and bundled web UI under `%LOCALAPPDATA%\Programs\LiquidSlide`, registers the two COM classes and PowerPoint add-in under HKCU, and provides an uninstaller. Users do not need Node.js or a .NET SDK. PowerPoint must be closed during installation, upgrades and removal.
 
-The installer source is a preparation draft, not an installation-tested release. Do not compile and distribute it until all gates below pass.
+The installer has been tested on the maintainer machine for installation, x64 COM registration, uninstall and reinstall. PowerPoint-running rejection was also observed. It is not a clean-machine compatibility-tested release. Public distribution remains blocked on the gates below.
 
 ## Gates before any binary distribution
 
@@ -27,3 +27,11 @@ The installer source is a preparation draft, not an installation-tested release.
 5. Uninstall through Windows Settings → Apps after closing PowerPoint.
 
 There is no downloadable installer yet. Source-build instructions are in README.
+
+## Local personal packaging
+
+Run `npm run build:all`, then `powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-installer.ps1 -CompilerPath "path\to\ISCC.exe"`.
+
+Outputs stay in Git-ignored `release-output/`. The personal package includes the local preview image and dependencies and must not be attached to GitHub or sent to others. The Inno Setup compiler license must be checked before changing this personal/non-commercial workflow into a commercial distribution process.
+
+The x64 registration path is explicit via `{sysnative}`. Installer tests found and corrected an earlier 32-bit PowerShell registration bug. Full WebGPU rendering inside the installed PowerPoint host still requires manual observation; registration and matching hashes do not prove rendering compatibility.
