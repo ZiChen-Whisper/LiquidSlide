@@ -1,28 +1,34 @@
-#define AppVersion "0.1.0"
+#ifndef AppVersion
+  #error AppVersion must be supplied by tools/build-installer.ps1
+#endif
 [Setup]
 AppId=LiquidSlide.PowerPointAddin
-AppName=LiquidSlide Personal Preview
+AppName=LiquidSlide
 AppVersion={#AppVersion}
 AppPublisher=ZiChen-Whisper
+AppPublisherURL=https://github.com/ZiChen-Whisper
+AppSupportURL=https://github.com/ZiChen-Whisper/LiquidSlide/issues
+AppUpdatesURL=https://github.com/ZiChen-Whisper/LiquidSlide/releases
 DefaultDirName={localappdata}\Programs\LiquidSlide
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName=LiquidSlide
 OutputDir=..\release-output
-OutputBaseFilename=LiquidSlide-{#AppVersion}-personal-preview-windows-x64-setup
+OutputBaseFilename=LiquidSlide-{#AppVersion}-windows-x64-setup
 Compression=lzma2
 SolidCompression=yes
 LicenseFile=..\LICENSE
-InfoBeforeFile=PERSONAL-PREVIEW.txt
+InfoBeforeFile=INSTALL-NOTES.txt
 CloseApplications=no
 
 [Files]
-Source: "..\src\LiquidSlide.ComAddin\bin\x64\Debug\net48\*"; DestDir: "{app}"; Excludes: "*.pdb,*.reg,Microsoft.Web.WebView2.Wpf.dll,runtimes\win-arm64\*,runtimes\win-x86\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\src\LiquidSlide.ComAddin\bin\x64\Release\net48\*"; DestDir: "{app}"; Excludes: "web\assets\preview-background.jpg,*.pdb,*.reg,Microsoft.Web.WebView2.Wpf.dll,runtimes\win-arm64\*,runtimes\win-x86\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\tools\install-com-addin.ps1"; DestDir: "{app}\tools"
 Source: "..\tools\uninstall-com-addin.ps1"; DestDir: "{app}\tools"
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"
 Source: "..\LICENSE"; DestDir: "{app}"
+Source: "INSTALL-NOTES.txt"; DestDir: "{app}"
 
 [Files]
 Source: "licenses\*"; DestDir: "{app}\licenses"

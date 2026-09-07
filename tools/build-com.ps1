@@ -1,3 +1,4 @@
+param([ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug')
 $ErrorActionPreference = "Stop"
 
 # Some non-interactive Windows hosts omit these variables. NuGet uses them
@@ -10,5 +11,6 @@ if (-not ${env:CommonProgramFiles(x86)}) { ${env:CommonProgramFiles(x86)} = "C:\
 if (-not $env:NUGET_PACKAGES) { $env:NUGET_PACKAGES = Join-Path $env:USERPROFILE ".nuget\packages" }
 
 $project = Join-Path $PSScriptRoot "..\src\LiquidSlide.ComAddin\LiquidSlide.ComAddin.csproj"
-dotnet build $project --configuration Debug --property:Platform=x64
+$version = (Get-Content (Join-Path $PSScriptRoot '..\package.json') -Raw | ConvertFrom-Json).version
+dotnet build $project --configuration $Configuration --property:Platform=x64 --property:Version=$version
 if ($LASTEXITCODE -ne 0) { throw "LiquidSlide COM build failed." }

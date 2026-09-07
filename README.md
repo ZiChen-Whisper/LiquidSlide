@@ -4,7 +4,7 @@
 
 为 Windows 桌面 PowerPoint 中的正圆和圆角矩形生成静态液态玻璃填充。读取图形背后的幻灯片背景，通过 WebGPU 渲染，再把生成的 PNG 填回原图形。
 
-> 当前为开发预览，**尚未公开发布 Release 或安装包**。本项目原创代码采用 MIT；所依赖的 `@liquid-dom/core@0.1.1` 再分发许可尚未明确，包含该依赖的二进制发布暂缓。详见 [第三方声明](THIRD_PARTY_NOTICES.md)。
+> **[下载 Windows x64 安装包](https://github.com/ZiChen-Whisper/LiquidSlide/releases/latest)** · 版本 0.1.0。LiquidSlide 与 Liquid DOM 均采用 MIT 许可证，完整依赖声明见 [第三方声明](THIRD_PARTY_NOTICES.md)。
 
 ## 实际效果
 
@@ -29,24 +29,32 @@ LiquidSlide 使用 **GPT-6 Astra** 辅助开发，维护者负责需求、效果
 
 ## 当前进展
 
-维护者已联系 Liquid DOM 作者确认授权，正在等待回复。目前仅制作供维护者本机使用的个人预览安装包，**不提供公开下载，不发布 Release**。功能展示与预热宣传不代表二进制已获再分发许可。海报中的概念装饰素材与实际软件截图会分别注明。
+维护者已完成插件功能验证。Liquid DOM 作者已补充根目录和 core 包的 MIT 许可证，安装包附带完整许可文本。面板顶部和 PowerPoint 的 LiquidSlide 菜单均提供“关于”入口，可查看版本、仓库、作者主页及 Issues 联系方式。
+
+安装：保存演示文稿并关闭 PowerPoint，下载 Release 中的 `LiquidSlide-0.1.0-windows-x64-setup.exe`，运行后重新打开 PowerPoint。卸载前同样需要关闭 PowerPoint。可用 `Get-FileHash .\LiquidSlide-0.1.0-windows-x64-setup.exe -Algorithm SHA256` 对照 Release 的 `SHA256SUMS.txt` 校验下载。
 
 ## 功能
 
-- 自动识别正圆和圆角矩形，保留原图形对象、文字与描边。
-- 示例材质预览；真实预览聚焦选区周围，保留少量背景，便于观察小图形。
+- 蓝紫色玻璃界面，配套全新 AI 生成的抽象预览背景，见 [素材来源](docs/PREVIEW-ARTWORK.md)。
+
+- 自动识别正圆和圆角矩形，保留原图形对象与文字；描边可独立去除。
+- 预览区域右上角提供示例 / 真实玻璃滑块；真实模式只在选区或图形几何变化并停稳后重新读取背景，只采样目标下方图层。
 - 经典通透、白色玻璃、黑色玻璃、柔雾磨砂预设。
 - 高级设置按需展开；固定底栏随时可以应用效果。
 - 独立添加 PowerPoint 原生图形阴影：黑色、95% 透明、20 pt 模糊、102% 大小、0 pt 距离。
-- 图形标签保存材质参数；图片填充为静态效果，背景改变后需要重新应用。
+- 图形标签保存材质参数；仅点击“应用效果”或 Ribbon 材质按钮时写入填充。
+- 界面本身使用 Liquid DOM / WebGPU 渲染玻璃面板与按钮，配合白底、绿色浮动圆形背景。
+- 顶部 LiquidSlide 选项卡：四种材质一键应用、重新打开面板；标准 Ribbon 按钮支持右键添加到快速访问工具栏。
 
 ## 使用方法
 
-1. 在幻灯片中单选一个正圆或圆角矩形，打开“加载项”选项卡中的 LiquidSlide。
+1. 在幻灯片中单选一个正圆或圆角矩形，打开顶部 **LiquidSlide → 打开面板**。
 2. 选择材质，或展开高级设置微调。
-3. 点击 **真实预览**，查看图形与周围真实背景。后续材质调整使用这次背景快照；背景或选区变化后再次点击真实预览。
+3. 用预览区域右上角的滑块切到 **真实**。选区移动、缩放、旋转或圆角等几何信息变化后刷新一次；调整材质参数直接使用已有背景预览，不重新导出幻灯片。
 4. 点击 **应用效果**，重新读取当前选区和背景并写入填充。
-5. 可选：点击底栏左侧 **添加图形阴影**。阴影是 PPT 原生属性，不烧录进玻璃图片。
+5. 底栏左侧提供 **添加图形阴影** 和 **去除图形描边** 两个独立操作，都修改 PPT 原生属性。
+
+已移除实时应用与定时截图。真实模式只轻量比较所选图形的几何信息，静止时不会导出或渲染新的幻灯片背景；关闭面板或返回示例后停止检测。写入 PPT 的效果保持静态。[实现与检查说明](docs/LIVE_PREVIEW.md)。
 
 真实预览显示玻璃填充与背景，不模拟 PowerPoint 的描边、文字或原生阴影。图形旋转后按本地坐标采样。当前不支持椭圆、组合、多选或其他自选图形。
 
@@ -89,7 +97,7 @@ npm run uninstall:addin
 
 ## 架构
 
-`PowerPoint COM → 隐藏目标并导出幻灯片 → 裁切背景 → WebGpuGlassCore → 静态 PNG → 原图形填充`
+`PowerPoint COM → 隐藏目标及其上层并导出幻灯片 → 恢复图层和选区 → 裁切背景 → WebGpuGlassCore → PNG → 校验当前目标后回填`
 
 - `src/LiquidSlide.ComAddin/`：C# COM 加载项、WebView2 任务窗格、PowerPoint 桥接。
 - `src/rendering/`：GPU 渲染、背景采样、图片输出。
@@ -101,13 +109,13 @@ npm run uninstall:addin
 
 自动检查包括 TypeScript、ESLint、单元测试和本机编译。浏览器检查覆盖预设、高级设置、局部预览、固定底栏和模拟桥接的预览/应用分离。它们不代替 PowerPoint 内实测。
 
-原生阴影精确属性、干净环境安装/卸载、不同 DPI/显卡/Office 版本、保存重开等仍需发布前验证。个人预览安装器已在维护者本机通过安装、64 位 COM 注册校验、卸载和重装；前置组件自动检测、干净环境兼容性和安装版宿主渲染仍待完善，不是公开发行版。
+维护者已确认插件功能可用。此前安装器已在本机验证安装、64 位 COM 注册、卸载和重装；这不代表干净环境、所有 DPI / 显卡 / Office 版本均已验证。安装包未签名，前置组件需自行安装。
 
 ## 致谢与许可
 
 玻璃光学渲染依赖 **[Andrew Prifer](https://github.com/AndrewPrifer)** 创建的 **[Liquid DOM](https://github.com/AndrewPrifer/liquid-dom)**，使用 `@liquid-dom/core` 的 `WebGpuGlassCore` 接口。感谢作者的实现；LiquidSlide 提供的是 PowerPoint 集成与 UI，而非原创光学渲染引擎。
 
-截至 2026-09-05 核查，上游根目录及 core 包无明确许可证，独立 layout 包的 MIT 不能推广到整个渲染核心。我们不在本仓库提交上游代码、打包 JS 或 DLL，也不在权限明确前分发包含它的安装包。
+2026-09-07 已核实上游根目录和 core 包均有 MIT 许可证，许可提交为 `1eeda968a3999d48b281ccb5835585f5bcd2fbde`。完整许可文本见 [installer/licenses](installer/licenses)，并随安装包分发。
 
 LiquidSlide 原创代码：[MIT](LICENSE)。依赖和图片分别遵循各自授权，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 

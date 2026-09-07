@@ -1,18 +1,26 @@
-# Third-party acknowledgements and distribution status
+# Third-party notices
 
-LiquidSlide's original integration/UI code is MIT licensed. That license does not relicense external dependencies or artwork.
+LiquidSlide original integration/UI code is MIT licensed (see LICENSE). External dependencies retain their own copyright and terms.
 
 ## Liquid DOM
 
-The optical rendering is provided by **[Liquid DOM](https://github.com/AndrewPrifer/liquid-dom)**, created by **[Andrew Prifer](https://github.com/AndrewPrifer)**. LiquidSlide uses `@liquid-dom/core@0.1.1` through its public `WebGpuGlassCore`, `Scene`, `Container` and `Glass` APIs. The upstream renderer is not authored by LiquidSlide and is not vendored in this source repository.
+Rendering uses [Liquid DOM](https://github.com/AndrewPrifer/liquid-dom), created by Andrew Prifer (copyright holder: Andras Prifer), through `@liquid-dom/core@0.1.1` and `@liquid-dom/layout@0.2.0`.
 
-License inspection on 2026-09-05: upstream commit `ac60d393bd0cbf5c3cee4a9f82405399265725ff` has no root LICENSE and no core LICENSE; the installed core package has no license field or license file. `packages/layout/LICENSE` covers the separate layout package only. Public source availability is not an explicit redistribution license. Binary distribution of the bundled core/shaders is pending upstream permission; README credit does not resolve that requirement.
+Verified on 2026-09-07: upstream added MIT licenses at the root and in `packages/core/LICENSE` in commit [`1eeda968a3999d48b281ccb5835585f5bcd2fbde`](https://github.com/AndrewPrifer/liquid-dom/commit/1eeda968a3999d48b281ccb5835585f5bcd2fbde). The previously recorded missing-license restriction is resolved. The locked npm core package predates the license files, so the upstream texts are explicitly included in the installer as `LiquidDOM-LICENSE.txt` and `LiquidDOM-Core-LICENSE.txt`. The layout package's own MIT text is included separately.
 
-## Other dependencies
+## Bundled dependencies
 
-- React and React DOM — Meta Platforms, Inc. and affiliates; MIT (see their package license files).
-- `@liquid-dom/layout` — see upstream `packages/layout/LICENSE` (MIT).
-- Microsoft Edge WebView2 SDK — Microsoft; governed by the SDK's NuGet license and redistribution terms. The Evergreen Runtime has separate Microsoft terms.
-- PowerPoint / Office are Microsoft products and are not distributed with LiquidSlide.
+The full texts below are included under the installed `licenses` directory and in `installer/licenses` in the source repository:
 
-Before binary release, include the actual required license texts with the distribution and verify the exact locked dependency versions. No third-party runtime bundle is committed here.
+- Liquid DOM core 0.1.1 — Andras Prifer; MIT.
+- Liquid DOM layout 0.2.0 — MIT; LiquidDOM-Layout-LICENSE.txt.
+- React 19.1.1 and React DOM 19.1.1 — Meta Platforms, Inc. and affiliates; MIT; React-LICENSE.txt and ReactDOM-LICENSE.txt.
+- Scheduler 0.26.0 — Meta Platforms, Inc. and affiliates; MIT; Scheduler-LICENSE.txt.
+- Bundled style-loader and css-loader runtime helpers — MIT; StyleLoader-LICENSE.txt and CssLoader-LICENSE.txt.
+- Microsoft Edge WebView2 SDK 1.0.4191.47 — Microsoft; WebView2-LICENSE.txt and WebView2-NOTICE.txt. The Evergreen Runtime is installed separately under Microsoft's terms.
+
+PowerPoint and Office are not distributed with LiquidSlide. The installer is built with Inno Setup by Jordan Russell and Martijn Laan.
+
+## Preview artwork
+
+`assets/preview-background.png` was AI-generated with the built-in image generation tool on 2026-09-07, using the maintainer-supplied reference only for its blue/violet flowing-petal style. It is a sample background, not a photograph or a screenshot of the plugin effect. The reference screenshot and former local JPEG are not bundled. See docs/PREVIEW-ARTWORK.md for the generation prompt.

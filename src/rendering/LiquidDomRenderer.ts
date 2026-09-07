@@ -1,4 +1,5 @@
-import { Container, Glass, Scene, WebGpuGlassCore } from "@liquid-dom/core";
+import { Glass, Scene, WebGpuGlassCore } from "@liquid-dom/core";
+import { createGlassContainer } from "./material";
 import { calculatePaddingCssPixels, getCornerRadiusCssPixels, pointsToCssPixels } from "../domain/geometry";
 import type { RenderRequest, RenderResult } from "../domain/types";
 import { buildLocalBackdrop, canvasPngBase64, cropCenter, imageFromBase64 } from "./image";
@@ -103,29 +104,7 @@ export class WebGpuLiquidDomRenderer implements LiquidDomRenderer {
     try {
       device.queue.copyExternalImageToTexture({ source: backdropBitmap }, { texture: backdropTexture }, [pixelWidth, pixelHeight]);
       const scene = new Scene();
-      const container = new Container({
-        opacity: settings.opacity,
-        blur: settings.blur,
-        bezelWidth: settings.bezelWidth,
-        thickness: settings.thickness,
-        displacementFactor: settings.displacementFactor,
-        displacementBlur: settings.displacementBlur,
-        normalDivergenceBlendEnabled: settings.normalDivergenceBlendEnabled,
-        normalDivergenceBlendPower: settings.normalDivergenceBlendPower,
-        ior: settings.ior,
-        dispersion: settings.dispersion,
-        surfaceProfile: settings.surfaceProfile,
-        lightDirection: settings.lightDirection,
-        specularStrength: settings.specularStrength,
-        specularWidth: settings.specularWidth,
-        specularFalloff: settings.specularFalloff,
-        oppositeSpecularStrength: settings.oppositeSpecularStrength,
-        specularSharpness: settings.specularSharpness,
-        specularOpacity: settings.specularOpacity,
-        reflectionOffset: settings.reflectionOffset,
-        tint: settings.tint,
-        debugDisplacement: settings.debugDisplacement
-      });
+      const container = createGlassContainer(settings);
       container.add(new Glass({
         x: padding,
         y: padding,

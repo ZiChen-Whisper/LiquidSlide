@@ -36,6 +36,8 @@ export interface LiquidGlassSettingsV1 {
 }
 
 export interface SelectedShapeInfo {
+  presentationId?: string;
+  zOrder?: number;
   shapeMode?: ShapeMode;
   id: string;
   slideId: string;

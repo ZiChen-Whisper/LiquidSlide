@@ -1,0 +1,18 @@
+LiquidSlide - Liquid Glass for PowerPoint
+
+Requirements:
+- Windows x64 and 64-bit desktop Microsoft PowerPoint
+- .NET Framework 4.8
+- Microsoft Edge WebView2 Evergreen Runtime and WebGPU-capable graphics
+
+Save presentations and close PowerPoint before installing, upgrading or uninstalling.
+Installation is per-user and does not require administrator privileges.
+Open the LiquidSlide ribbon tab in PowerPoint to access materials, the panel and About.
+
+This installer is unsigned. Prerequisites are not downloaded automatically.
+WebView2: https://developer.microsoft.com/microsoft-edge/webview2/
+.NET Framework: https://dotnet.microsoft.com/download/dotnet-framework/net48
+
+Repository: https://github.com/ZiChen-Whisper/LiquidSlide
+Support: https://github.com/ZiChen-Whisper/LiquidSlide/issues
+Third-party license texts are included in the licenses folder.

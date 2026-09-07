@@ -5,6 +5,9 @@ interface WebViewMessage {
   ok: boolean;
   result?: unknown;
   error?: string;
+  type?: string;
+  preset?: string;
+  shape?: SelectedShapeInfo;
 }
 
 interface WebViewBridge {
@@ -18,19 +21,31 @@ declare global {
 
 export interface HostAdapter {
   inspectSelection(): Promise<{ shape: SelectedShapeInfo; savedSettings: LiquidGlassSettingsV1 | null }>;
-  captureBackground(shapeId: string, slideId: string): Promise<string>;
-  applyFill(shapeId: string, pngBase64: string, settings: LiquidGlassSettingsV1, slideId: string): Promise<void>;
+  captureBackground(shape: SelectedShapeInfo): Promise<string>;
+  applyFill(shape: SelectedShapeInfo, pngBase64: string, settings: LiquidGlassSettingsV1): Promise<boolean>;
 }
 
 export class ComHostAdapter implements HostAdapter {
   private nextId = 1;
   private pending = new Map<number, { resolve: (value: unknown) => void; reject: (reason: Error) => void }>();
+  onPreset?: (preset: string, shape: SelectedShapeInfo) => void;
+  onHidden?: () => void;
+  onAbout?: () => void;
+  onSelectionChanged?: () => void;
 
   constructor() {
     const bridge = window.chrome?.webview;
     if (!bridge) return;
     bridge.addEventListener("message", (event) => {
       const message = event.data;
+      if (message.type === "about") { this.onAbout?.(); return; }
+      if (message.type === "preset" && message.preset && message.shape) { this.onPreset?.(message.preset, message.shape); return; }
+      if (message.type === "hidden" || message.type === "shown") {
+        document.dispatchEvent(new CustomEvent("liquidslide-pane-visibility", { detail: message.type === "shown" }));
+        if (message.type === "hidden") this.onHidden?.();
+        return;
+      }
+      if (message.type === "selectionChanged") { this.onSelectionChanged?.(); return; }
       const request = this.pending.get(message.id);
       if (!request) return;
       this.pending.delete(message.id);
@@ -39,9 +54,15 @@ export class ComHostAdapter implements HostAdapter {
     });
   }
 
-  async applyShadow(shapeId: string, slideId: string) {
-    await this.request("applyShadow", { shapeId, slideId });
+  async applyShadow(shape: SelectedShapeInfo) {
+    await this.request("applyShadow", this.target(shape));
   }
+
+  async removeOutline(shape: SelectedShapeInfo) { await this.request("removeOutline", this.target(shape)); }
+  async ready() { await this.request("ready"); }
+  async watchSelection(enabled: boolean) { await this.request("watchSelection", { enabled }); }
+  async commandFinished(error?: string) { await this.request("commandFinished", { error }); }
+  private target(shape: SelectedShapeInfo) { return { shapeId: shape.id, slideId: shape.slideId, expectedShape: shape }; }
 
   get available(): boolean { return Boolean(window.chrome?.webview); }
 
@@ -50,8 +71,13 @@ export class ComHostAdapter implements HostAdapter {
     if (!bridge) return Promise.reject(new Error("LiquidSlide 必须在 PowerPoint COM 工具窗口中运行。"));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: (value) => resolve(value as T), reject });
-      bridge.postMessage({ id, type, payload });
+      const timeout = window.setTimeout(() => { this.pending.delete(id); reject(new Error("PowerPoint 响应超时，请重新打开面板。")); }, 30000);
+      this.pending.set(id, {
+        resolve: (value) => { window.clearTimeout(timeout); resolve(value as T); },
+        reject: (reason) => { window.clearTimeout(timeout); reject(reason); }
+      });
+      try { bridge.postMessage({ id, type, payload }); }
+      catch (error) { window.clearTimeout(timeout); this.pending.delete(id); reject(error); }
     });
   }
 
@@ -59,11 +85,12 @@ export class ComHostAdapter implements HostAdapter {
     return this.request<{ shape: SelectedShapeInfo; savedSettings: LiquidGlassSettingsV1 | null }>("inspectSelection");
   }
 
-  captureBackground(shapeId: string, slideId: string) {
-    return this.request<string>("captureBackground", { shapeId, slideId });
+  captureBackground(shape: SelectedShapeInfo) {
+    return this.request<string>("captureBackground", this.target(shape));
   }
 
-  async applyFill(shapeId: string, pngBase64: string, settings: LiquidGlassSettingsV1, slideId: string) {
-    await this.request("applyFill", { shapeId, pngBase64, settings, slideId });
+  async applyFill(shape: SelectedShapeInfo, pngBase64: string, settings: LiquidGlassSettingsV1) {
+    const result = await this.request<{ applied: boolean }>("applyFill", { ...this.target(shape), pngBase64, settings });
+    return result.applied;
   }
 }

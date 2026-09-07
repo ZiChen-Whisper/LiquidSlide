@@ -21,7 +21,7 @@ module.exports = async (_env, argv) => {
     },
     plugins: [
       new HtmlWebpackPlugin({ template: "./src/taskpane.html", filename: "taskpane.html" }),
-      new CopyWebpackPlugin({ patterns: [{ from: "assets", to: "assets" }] })
+      new CopyWebpackPlugin({ patterns: [{ from: "assets", to: "assets", globOptions: { ignore: ["**/preview-background.jpg"] } }] })
     ],
     devServer: {
       hot: true,

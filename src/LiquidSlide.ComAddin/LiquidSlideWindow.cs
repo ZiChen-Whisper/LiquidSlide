@@ -20,14 +20,95 @@ namespace LiquidSlide.ComAddin
     public sealed class LiquidSlideWindow : UserControl
     {
         private PowerPointBridge bridge;
+        internal static LiquidSlideWindow Current { get; private set; }
+        private bool ready;
+        private bool pendingAbout;
+        private bool paneVisible = true;
+        private object pendingCommand;
+        private bool commandBusy;
+        private bool watchSelection;
+        private bool handlingRequest;
+        private string observedSelection;
+        private string publishedSelection;
+        // Cheap geometry comparison only. This timer NEVER exports or edits a slide.
+        private readonly Timer selectionWatcher = new Timer { Interval = 250 };
         private readonly WebView2 webView = new WebView2 { Dock = DockStyle.Fill };
         private readonly JavaScriptSerializer serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
 
         public LiquidSlideWindow()
         {
+            Current = this;
             MinimumSize = new Size(340, 560);
             Controls.Add(webView);
             Load += async (_, __) => await InitializeWebViewAsync();
+            selectionWatcher.Tick += CheckSelection;
+        }
+
+        internal void SetPaneVisible(bool visible)
+        {
+            paneVisible = visible;
+            if (!visible) { watchSelection = false; selectionWatcher.Stop(); }
+            if (ready) webView.CoreWebView2.PostWebMessageAsJson(visible ? "{\"type\":\"shown\"}" : "{\"type\":\"hidden\"}");
+        }
+
+        private void CheckSelection(object sender, EventArgs args)
+        {
+            if (!watchSelection || !paneVisible || !ready || handlingRequest || Control.MouseButtons != MouseButtons.None) return;
+            string fingerprint;
+            try { fingerprint = bridge.SelectionFingerprint(); }
+            catch (COMException) { return; } // PowerPoint is busy; do not interfere with an edit.
+            catch (InvalidOperationException) { fingerprint = "no-selection"; }
+            // Wait for two matching observations, so a drag/resize produces one refresh on release.
+            if (fingerprint != observedSelection) { observedSelection = fingerprint; return; }
+            if (fingerprint == publishedSelection) return;
+            publishedSelection = fingerprint;
+            webView.CoreWebView2.PostWebMessageAsJson("{\"type\":\"selectionChanged\"}");
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                selectionWatcher.Stop();
+                selectionWatcher.Dispose();
+                if (Current == this) Current = null;
+            }
+            base.Dispose(disposing);
+        }
+
+        internal void ApplyPreset(string preset)
+        {
+            if (commandBusy) throw new InvalidOperationException("正在应用材质，请稍后重试。");
+            if (bridge == null) throw new InvalidOperationException("面板正在启动，请稍后重试。");
+            var selection = serializer.DeserializeObject(serializer.Serialize(bridge.InspectSelection())) as IDictionary<string, object>;
+            pendingCommand = new { type = "preset", preset, shape = selection["shape"] };
+            commandBusy = true;
+            SendPendingCommand();
+        }
+
+        private void SendPendingCommand()
+        {
+            if (ready && pendingAbout)
+            {
+                webView.CoreWebView2.PostWebMessageAsJson("{\"type\":\"about\"}");
+                pendingAbout = false;
+            }
+            if (!ready || pendingCommand == null) return;
+            webView.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(pendingCommand));
+            pendingCommand = null;
+        }
+
+        internal void ShowAbout()
+        {
+            pendingAbout = true;
+            SendPendingCommand();
+        }
+
+        private static void OpenExternalLink(string address)
+        {
+            if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != "github.com") return;
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
+            catch (Exception error) { MessageBox.Show(error.Message, "无法打开链接", MessageBoxButtons.OK, MessageBoxIcon.Information); }
         }
 
         private async Task InitializeWebViewAsync()
@@ -43,6 +124,13 @@ namespace LiquidSlide.ComAddin
                 var webRoot = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "web");
                 webView.CoreWebView2.SetVirtualHostNameToFolderMapping("liquidslide.local", webRoot, CoreWebView2HostResourceAccessKind.DenyCors);
                 webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+                webView.CoreWebView2.NewWindowRequested += (_, args) => { args.Handled = true; OpenExternalLink(args.Uri); };
+                webView.CoreWebView2.NavigationStarting += (_, args) =>
+                {
+                    if (Uri.TryCreate(args.Uri, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.Host == "liquidslide.local") return;
+                    args.Cancel = true;
+                    OpenExternalLink(args.Uri);
+                };
                 webView.CoreWebView2.Navigate("https://liquidslide.local/taskpane.html");
             }
             catch (Exception exception)
@@ -54,6 +142,7 @@ namespace LiquidSlide.ComAddin
 
         private void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
         {
+            handlingRequest = true;
             IDictionary<string, object> request = null;
             object id = null;
             try
@@ -66,10 +155,31 @@ namespace LiquidSlide.ComAddin
                 object result;
                 switch (type)
                 {
+                    case "watchSelection":
+                        watchSelection = Convert.ToBoolean(payload["enabled"]);
+                        if (watchSelection && paneVisible)
+                        {
+                            observedSelection = publishedSelection = null;
+                            selectionWatcher.Start();
+                        }
+                        else selectionWatcher.Stop();
+                        result = true; break;
+                    case "ready": ready = true; SendPendingCommand(); result = true; break;
+                    case "commandFinished":
+                        commandBusy = false;
+                        if (payload.TryGetValue("error", out var error) && error != null)
+                            MessageBox.Show(Convert.ToString(error), "LiquidSlide", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        result = true; break;
                     case "inspectSelection": result = bridge.InspectSelection(); break;
-                    case "captureBackground": result = bridge.CaptureBackground(payload); break;
-                    case "applyFill": result = bridge.ApplyFill(payload); break;
+                    case "captureBackground":
+                        result = bridge.CaptureBackground(payload);
+                        observedSelection = publishedSelection = bridge.SelectionFingerprint();
+                        break;
+                    case "applyFill":
+                        if (!paneVisible) throw new InvalidOperationException("面板已关闭，应用已停止。");
+                        result = bridge.ApplyFill(payload); break;
                     case "applyShadow": result = bridge.ApplyShadow(payload); break;
+                    case "removeOutline": result = bridge.RemoveOutline(payload); break;
                     default: throw new InvalidOperationException("未知请求：" + type);
                 }
                 webView.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(new { id, ok = true, result }));
@@ -78,6 +188,7 @@ namespace LiquidSlide.ComAddin
             {
                 webView.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(new { id, ok = false, error = exception.Message }));
             }
+            finally { handlingRequest = false; }
         }
     }
 }

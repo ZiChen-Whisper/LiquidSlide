@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS: LiquidGlassSettingsV1 = {
   thickness: 90,
   displacementFactor: 1,
   displacementBlur: 6,
-  ior: 1.5,
+  ior: 1.3,
   dispersion: 0.05,
   surfaceProfile: "convex",
   lightDirection: -Math.PI / 4,

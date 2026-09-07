@@ -15,8 +15,34 @@ namespace LiquidSlide.ComAddin
         private const string TagPrefix = "LIQUIDSLIDE_SETTINGS_V1_";
         private readonly PowerPoint.Application application;
         private readonly JavaScriptSerializer serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        private readonly Dictionary<PowerPoint.Presentation, string> presentationIds = new Dictionary<PowerPoint.Presentation, string>();
+
+        private string PresentationId(PowerPoint.Presentation presentation)
+        {
+            if (!presentationIds.TryGetValue(presentation, out var id))
+                presentationIds[presentation] = id = Guid.NewGuid().ToString("N");
+            return id;
+        }
 
         public PowerPointBridge(PowerPoint.Application application) { this.application = application; }
+
+        public string SelectionFingerprint()
+        {
+            var presentation = RequirePresentation();
+            var selection = application.ActiveWindow?.Selection;
+            if (selection == null || selection.Type != PowerPoint.PpSelectionType.ppSelectionShapes || selection.ShapeRange.Count != 1)
+                return "no-selection";
+            var shape = selection.ShapeRange[1];
+            var slide = (PowerPoint.Slide)application.ActiveWindow.View.Slide;
+            float? adjustment = null;
+            if (shape.Type == Office.MsoShapeType.msoAutoShape && shape.Adjustments.Count > 0) adjustment = shape.Adjustments[1];
+            return serializer.Serialize(new {
+                document = PresentationId(presentation), slide = slide.SlideID, id = shape.Id,
+                shape.Left, shape.Top, shape.Width, shape.Height, shape.Rotation, shape.ZOrderPosition,
+                type = shape.Type, autoShape = shape.Type == Office.MsoShapeType.msoAutoShape ? (int)shape.AutoShapeType : 0, adjustment,
+                slideWidth = presentation.PageSetup.SlideWidth, slideHeight = presentation.PageSetup.SlideHeight
+            });
+        }
 
         public object InspectSelection()
         {
@@ -43,6 +69,7 @@ namespace LiquidSlide.ComAddin
                 shape = new
                 {
                     shapeMode = isCircle ? "circle" : "roundedRectangle",
+                    presentationId = PresentationId(presentation),
                     id = shape.Id.ToString(CultureInfo.InvariantCulture),
                     slideId = slide.SlideID.ToString(CultureInfo.InvariantCulture),
                     left = shape.Left,
@@ -50,6 +77,7 @@ namespace LiquidSlide.ComAddin
                     width = shape.Width,
                     height = shape.Height,
                     rotation = shape.Rotation,
+                    zOrder = shape.ZOrderPosition,
                     adjustment,
                     slideWidth = presentation.PageSetup.SlideWidth,
                     slideHeight = presentation.PageSetup.SlideHeight
@@ -60,14 +88,22 @@ namespace LiquidSlide.ComAddin
 
         public object CaptureBackground(IDictionary<string, object> payload)
         {
+            ValidateTarget(payload);
             var presentation = RequirePresentation();
             var shapeId = ParseShapeId(payload);
             var slide = FindSlideForShape(shapeId, Convert.ToInt32(payload["slideId"], CultureInfo.InvariantCulture), out var shape);
             var tempPath = Path.Combine(Path.GetTempPath(), $"LiquidSlide-slide-{Guid.NewGuid():N}.png");
-            var originalVisible = shape.Visible;
+            var hidden = new List<KeyValuePair<PowerPoint.Shape, Office.MsoTriState>>();
             try
             {
-                shape.Visible = Office.MsoTriState.msoFalse;
+                // ZOrderPosition is 1 at the back. Export only layers BELOW the target.
+                var targetZ = shape.ZOrderPosition;
+                foreach (PowerPoint.Shape layer in slide.Shapes)
+                {
+                    if (layer.ZOrderPosition < targetZ) continue;
+                    hidden.Add(new KeyValuePair<PowerPoint.Shape, Office.MsoTriState>(layer, layer.Visible));
+                    layer.Visible = Office.MsoTriState.msoFalse;
+                }
                 var width = 2560;
                 var height = Math.Max(1, (int)Math.Round(width * presentation.PageSetup.SlideHeight / presentation.PageSetup.SlideWidth));
                 slide.Export(tempPath, "PNG", width, height);
@@ -75,14 +111,25 @@ namespace LiquidSlide.ComAddin
             }
             finally
             {
-                shape.Visible = originalVisible;
-                try { shape.Select(Office.MsoTriState.msoFalse); } catch (COMException) { }
+                // Attempt EVERY restoration even when one COM call fails.
+                Exception restoreError = null;
+                foreach (var layer in hidden)
+                {
+                    try { layer.Key.Visible = layer.Value; }
+                    catch (Exception error) { restoreError = error; }
+                }
+                // PowerPoint clears the selection when its shape is hidden. Restore it
+                // within this synchronous capture, before returning control to the user.
+                try { shape.Select(Office.MsoTriState.msoTrue); }
+                catch (Exception error) { restoreError = error; }
                 if (File.Exists(tempPath)) File.Delete(tempPath);
+                if (restoreError != null) throw new InvalidOperationException("恢复图层可见性失败，请检查幻灯片。", restoreError);
             }
         }
 
         public object ApplyFill(IDictionary<string, object> payload)
         {
+            if (!ValidateTarget(payload, false)) return new { applied = false };
             var shapeId = ParseShapeId(payload);
             var pngBase64 = Convert.ToString(payload["pngBase64"], CultureInfo.InvariantCulture);
             var settings = payload["settings"];
@@ -93,7 +140,6 @@ namespace LiquidSlide.ComAddin
                 File.WriteAllBytes(tempPath, Convert.FromBase64String(pngBase64));
                 shape.Fill.UserPicture(tempPath);
                 WriteSettings(shape.Tags, serializer.Serialize(settings));
-                shape.Select(Office.MsoTriState.msoFalse);
                 return new { applied = true };
             }
             finally
@@ -104,6 +150,7 @@ namespace LiquidSlide.ComAddin
 
         public object ApplyShadow(IDictionary<string, object> payload)
         {
+            ValidateTarget(payload);
             FindSlideForShape(ParseShapeId(payload), Convert.ToInt32(payload["slideId"], CultureInfo.InvariantCulture), out var shape);
             var shadow = shape.Shadow;
             shadow.Type = Office.MsoShadowType.msoShadow14;
@@ -117,6 +164,31 @@ namespace LiquidSlide.ComAddin
             shadow.OffsetY = 0f;
             shadow.Visible = Office.MsoTriState.msoTrue;
             return new { applied = true };
+        }
+
+        public object RemoveOutline(IDictionary<string, object> payload)
+        {
+            ValidateTarget(payload);
+            FindSlideForShape(ParseShapeId(payload), Convert.ToInt32(payload["slideId"], CultureInfo.InvariantCulture), out var shape);
+            shape.Line.Visible = Office.MsoTriState.msoFalse;
+            return new { applied = true };
+        }
+
+        // Never write an asynchronous frame to another document, selection or geometry.
+        private bool ValidateTarget(IDictionary<string, object> payload, bool throwOnChange = true)
+        {
+            var current = serializer.DeserializeObject(serializer.Serialize(InspectSelection())) as IDictionary<string, object>;
+            var actual = (IDictionary<string, object>)current["shape"];
+            var expected = (IDictionary<string, object>)payload["expectedShape"];
+            foreach (var key in new[] { "presentationId", "id", "slideId", "shapeMode", "left", "top", "width", "height", "rotation", "adjustment", "zOrder", "slideWidth", "slideHeight" })
+            {
+                if (!Equals(actual[key], expected[key]))
+                {
+                    if (throwOnChange) throw new InvalidOperationException("选区或图形已变化，正在等待下一次刷新。请重试。 ");
+                    return false;
+                }
+            }
+            return true;
         }
 
         private PowerPoint.Presentation RequirePresentation() =>

@@ -1,0 +1,20 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui">
+  <ribbon>
+    <tabs>
+      <tab id="LiquidSlideTab" label="LiquidSlide">
+        <group id="LiquidSlideMaterials" label="玻璃材质">
+          <button id="LiquidSlideClear" label="经典通透" tag="clear" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用经典通透玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
+          <button id="LiquidSlideWhite" label="白色玻璃" tag="white" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用白色玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
+          <button id="LiquidSlideBlack" label="黑色玻璃" tag="black" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用黑色玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
+          <button id="LiquidSlideFrost" label="柔雾磨砂" tag="frost" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用柔雾磨砂玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
+        </group>
+        <group id="LiquidSlidePanel" label="材质工作台">
+          <button id="LiquidSlideOpen" tag="panel" label="打开面板" size="large" getImage="GetRibbonImage" onAction="OnOpenPanel" screentip="打开 LiquidSlide" supertip="重新打开材质预览与参数面板。右键可添加到快速访问工具栏。" />
+        </group>
+        <group id="LiquidSlideHelp" label="帮助">
+          <button id="LiquidSlideAbout" label="关于" size="large" imageMso="Info" onAction="OnAbout" screentip="关于 LiquidSlide" supertip="查看版本、项目仓库、作者联系方式与开源致谢。" />
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

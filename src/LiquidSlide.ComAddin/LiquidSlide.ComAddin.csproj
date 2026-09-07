@@ -12,6 +12,7 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Ribbon.xml" LogicalName="LiquidSlide.Ribbon.xml" />
     <Reference Include="Extensibility">
       <HintPath>C:\Windows\assembly\GAC\Extensibility\7.0.3300.0__b03f5f7f11d50a3a\extensibility.dll</HintPath>
       <Private>false</Private>

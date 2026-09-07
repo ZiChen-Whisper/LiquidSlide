@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { DEFAULT_SETTINGS, cloneSettings } from "./domain/settings";
-import { validateShape } from "./domain/geometry";
+import { RenderCoordinator } from "./host/RenderCoordinator";
 import type { LiquidGlassSettingsV1, RuntimeCapabilities, SelectedShapeInfo } from "./domain/types";
 import { ComHostAdapter } from "./host/ComHostAdapter";
 import { WebGpuLiquidDomRenderer } from "./rendering/LiquidDomRenderer";
@@ -8,6 +8,8 @@ import { ParameterControl } from "./ui/ParameterControl";
 import { PARAMETER_GROUPS } from "./ui/parameterDefinitions";
 import { Preview, type PreviewSource } from "./ui/Preview";
 import { MATERIAL_PRESETS, applyPreset } from "./domain/presets";
+import { LiquidGlassUi } from "./ui/LiquidGlassUi";
+import { AboutDialog } from "./ui/AboutDialog";
 
 function hexToRgb(hex: string) {
   const value = Number.parseInt(hex.replace("#", ""), 16);
@@ -21,12 +23,28 @@ function rgbToHex({ r, g, b }: { r: number; g: number; b: number }) {
 export default function App() {
   const adapter = useMemo(() => new ComHostAdapter(), []);
   const renderer = useMemo(() => new WebGpuLiquidDomRenderer(), []);
-  const [settings, setSettings] = useState<LiquidGlassSettingsV1>(() => cloneSettings());
+  const coordinator = useMemo(() => new RenderCoordinator(adapter, renderer), [adapter, renderer]);
+  const [settings, storeSettings] = useState<LiquidGlassSettingsV1>(() => cloneSettings());
   const [selectedShape, setSelectedShape] = useState<SelectedShapeInfo | null>(null);
   const [status, setStatus] = useState("在幻灯片中选择图形，即可预览或生成。");
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<PreviewSource | null>(null);
   const [advanced, setAdvanced] = useState(false);
+  const [about, setAbout] = useState(false);
+  const [real, setReal] = useState(false);
+  const [sceneVersion, setSceneVersion] = useState(0);
+  const revision = useRef(0);
+  const setSettings = useCallback((value: SetStateAction<LiquidGlassSettingsV1>) => {
+    revision.current++;
+    storeSettings(value);
+  }, []);
+  const actionBusy = useRef(false);
+  const commandHandler = useRef<(preset: string, shape: SelectedShapeInfo) => void>(() => {});
+  const showSample = useCallback(() => {
+    revision.current++;
+    setReal(false);
+    setSource(null);
+  }, []);
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities>({
     officeReady: adapter.available,
     officeApiSupported: adapter.available,
@@ -49,7 +67,7 @@ export default function App() {
       setSelectedShape(null);
       setStatus(reason instanceof Error ? reason.message : "读取选区失败。");
     }
-  }, [adapter]);
+  }, [adapter, setSettings]);
 
   useEffect(() => {
     const officeApiSupported = adapter.available;
@@ -68,66 +86,120 @@ export default function App() {
     };
   }, [adapter, refreshSelection, renderer]);
 
-  const capture = async (writeFill: boolean) => {
-    setBusy(true);
-    try {
-      const { shape } = await adapter.inspectSelection();
-      const effective = { ...settings, shapeMode: shape.shapeMode ?? settings.shapeMode };
-      setSelectedShape(shape);
-      setSettings(effective);
-      validateShape(shape, effective.shapeMode);
-      setStatus("正在读取选区背景…");
-      const slideImageBase64 = await adapter.captureBackground(shape.id, shape.slideId);
-      setSource({ slideImageBase64, shape });
-      if (writeFill) {
-        setStatus("正在生成并更新图形填充…");
-        const result = await renderer.render({ slideImageBase64, shape, settings: effective });
-        await adapter.applyFill(shape.id, result.pngBase64, effective, shape.slideId);
-        setStatus(`已更新 · ${result.width} × ${result.height} px`);
-      } else {
-        setStatus("已读取真实背景。调整材质可继续预览，点击生成后应用。");
+  useEffect(() => {
+    adapter.onPreset = (preset, shape) => commandHandler.current(preset, shape);
+    adapter.onHidden = showSample;
+    adapter.onAbout = () => setAbout(true);
+    adapter.onSelectionChanged = () => { revision.current++; setSceneVersion((value) => value + 1); };
+    if (adapter.available) void adapter.ready().catch((error: Error) => setStatus(error.message));
+    return () => { adapter.onPreset = undefined; adapter.onHidden = undefined; adapter.onAbout = undefined; adapter.onSelectionChanged = undefined; };
+  }, [adapter, showSample]);
+
+  useEffect(() => {
+    if (adapter.available) void adapter.watchSelection(real).catch((error: Error) => setStatus(error.message));
+    return () => { if (adapter.available) void adapter.watchSelection(false).catch(() => {}); };
+  }, [real, adapter]);
+
+  useEffect(() => {
+    if (!real || busy) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        // Wait only for a transaction already in progress, never schedule recurring exports.
+        while (coordinator.busy && !cancelled) await new Promise((resolve) => window.setTimeout(resolve, 30));
+        if (cancelled) return;
+        const result = await coordinator.captureSource(() => !cancelled);
+        if (result && !cancelled) {
+          setSelectedShape(result.shape);
+          setSource(result);
+          setStatus("真实预览 · 图形变化后刷新，点击应用效果写入填充");
+        }
+      } catch (reason) {
+        if (!cancelled) {
+          setSource(null);
+          setSelectedShape(null);
+          setStatus(reason instanceof Error ? reason.message : "读取真实预览失败。");
+        }
       }
-    } catch (reason) {
-      setStatus(reason instanceof Error ? reason.message : "操作失败，请重试。");
-    } finally { setBusy(false); }
-  };
-  const addShadow = async () => {
+    };
+    void refresh();
+    return () => { cancelled = true; };
+  }, [real, sceneVersion, busy, coordinator]);
+
+  const capture = async (preset?: string, target?: SelectedShapeInfo) => {
+    if (actionBusy.current) {
+      if (preset) await adapter.commandFinished("正在处理上一次操作，请稍后重试。");
+      return;
+    }
+    revision.current++;
+    actionBusy.current = true;
     setBusy(true);
     try {
+      const version = revision.current;
+      // Let an invalidated preview release the shared host transaction.
+      while (coordinator.busy && version === revision.current) await new Promise((resolve) => window.setTimeout(resolve, 30));
+      if (version !== revision.current) throw new Error("操作已取消。");
+      setStatus("正在生成并更新图形填充…");
+      const result = await coordinator.run(preset ? applyPreset(preset, settings) : settings, true,
+        () => version === revision.current, target, true);
+      if (!result) throw new Error("图形已移动或选区已变化，请重新应用。");
+      setSelectedShape(result.shape);
+      setSettings(result.settings);
+      setSource(result);
+      setReal(true);
+      setStatus(`已更新 · ${result.rendered.width} × ${result.rendered.height} px`);
+      if (preset) await adapter.commandFinished();
+    } catch (reason) {
+      const error = reason instanceof Error ? reason.message : "操作失败，请重试。";
+      setStatus(error);
+      if (preset) await adapter.commandFinished(error);
+    } finally { setBusy(false); actionBusy.current = false; }
+  };
+  commandHandler.current = (preset, shape) => { void capture(preset, shape); };
+  const editShape = async (outline: boolean) => {
+    if (actionBusy.current) return;
+    revision.current++;
+    actionBusy.current = true;
+    setBusy(true);
+    try {
+      while (coordinator.busy) await new Promise((resolve) => window.setTimeout(resolve, 30));
       const { shape } = await adapter.inspectSelection();
-      await adapter.applyShadow(shape.id, shape.slideId);
-      setStatus("已添加原生阴影 · 黑色 / 95% 透明 / 20 pt / 102% / 0 pt");
+      if (outline) await adapter.removeOutline(shape);
+      else await adapter.applyShadow(shape);
+      setStatus(outline ? "已去除图形描边" : "已添加原生阴影 · 黑色 / 95% 透明 / 20 pt / 102% / 0 pt");
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : "添加阴影失败。");
-    } finally { setBusy(false); }
+    } finally { setBusy(false); actionBusy.current = false; }
   };
   const available = capabilities.officeApiSupported && capabilities.webGpuSupported;
   return (
     <main>
+      <LiquidGlassUi paused={busy} />
       <header>
         <div>
           <h1>LiquidSlide</h1>
           <p>Liquid Glass for PowerPoint</p>
+          <button className="about-link" onClick={() => setAbout(true)}>关于 LiquidSlide</button>
         </div>
-        <span className={available ? "badge ok" : "badge error"}>{capabilities.message}</span>
+        <span data-liquid-glass="white" className={available ? "badge ok" : "badge error"}>{capabilities.message}</span>
       </header>
 
-      <div className="preview-card">
-        <div className="card-heading"><h2>材质预览</h2>{source && <button className="text-button" disabled={busy} onClick={() => setSource(null)}>返回示例</button>}</div>
-        <Preview settings={settings} renderer={renderer} source={source} />
+      <div className="preview-card" data-liquid-glass="white">
+        <div className="card-heading"><h2>材质预览</h2></div>
+        <Preview settings={settings} renderer={renderer} source={real ? source : null} real={real}
+          disabled={busy} available={available} onModeChange={(value) => value ? setReal(true) : showSample()} />
         <div className="preview-actions">
           <span>{selectedShape?.shapeMode ? `自动识别 · ${selectedShape.shapeMode === "circle" ? "正圆" : "圆角矩形"}` : "自动识别所选图形"}</span>
-          <button type="button" className="secondary" onClick={() => void capture(false)} disabled={busy || !available}>真实预览</button>
         </div>
       </div>
 
       <fieldset disabled={busy} className="material-settings">
-      <section className="presets-section">
+      <section className="presets-section" data-liquid-glass="white">
         <div className="card-heading"><h2>材质</h2><span>选择一种质感</span></div>
         <div className="preset-grid">
           {MATERIAL_PRESETS.map((preset) => {
             const active = JSON.stringify(applyPreset(preset.id, settings)) === JSON.stringify(settings);
-            return <button key={preset.id} className={`preset ${preset.id} ${active ? "active" : ""}`} aria-pressed={active}
+            return <button key={preset.id} data-liquid-glass="white" className={`preset ${preset.id} ${active ? "active" : ""}`} aria-pressed={active}
               onClick={() => setSettings(applyPreset(preset.id, settings))}>
               <span className="swatch" aria-hidden="true"><i /></span>
               <span><strong>{preset.name}</strong><small>{preset.description}</small></span>
@@ -139,7 +211,7 @@ export default function App() {
         <span>高级设置 <small>微调材质参数</small></span><span aria-hidden="true">{advanced ? "−" : "+"}</span>
       </button>
       {advanced && <div id="advanced-settings">
-      <section>
+      <section data-liquid-glass="white">
         <label className="select-row">输出倍率
           <select value={settings.outputScale} onChange={(event) => setSettings({ ...settings, outputScale: Number(event.target.value) as 1 | 2 | 3 })}>
             <option value={1}>1×</option><option value={2}>2×（默认）</option><option value={3}>3×</option>
@@ -151,7 +223,7 @@ export default function App() {
           </select>
         </label>}
       </section>      {PARAMETER_GROUPS.map((group) => (
-        <details key={group.title} open={group.title !== "高级"}>
+        <details data-liquid-glass="white" key={group.title} open={group.title !== "高级"}>
           <summary>{group.title}</summary>
           {group.parameters.map((parameter) => (
             <ParameterControl
@@ -201,16 +273,20 @@ export default function App() {
       <footer>
         <p className="status" role="status">{status}</p>
         <div className="footer-actions">
-      <button className="secondary shadow-action" type="button" title="添加图形阴影" aria-label="添加图形阴影" disabled={busy || !available} onClick={() => void addShadow()}>
+      <button data-liquid-glass="white" className="secondary shadow-action" type="button" title="添加图形阴影" aria-label="添加图形阴影" disabled={busy || !available} onClick={() => void editShape(false)}>
           <svg viewBox="0 0 28 28" width="26" height="26" fill="none" aria-hidden="true">
             <rect x="7" y="10" width="17" height="13" rx="4" fill="currentColor" opacity=".08" />
             <rect x="6" y="9" width="17" height="13" rx="4" fill="currentColor" opacity=".14" />
-            <rect x="4" y="5" width="17" height="13" rx="4" fill="#eef5f0" stroke="currentColor" strokeWidth="1.4" />
+            <rect x="4" y="5" width="17" height="13" rx="4" fill="#f0f1ff" stroke="currentColor" strokeWidth="1.4" />
           </svg>
         </button>
-        <button className="primary" type="button" disabled={busy || !available} onClick={() => void capture(true)}>{busy ? "处理中…" : "应用效果"}<span aria-hidden="true">↗</span></button>
+        <button data-liquid-glass="white" className="secondary shadow-action" type="button" title="去除图形描边" aria-label="去除图形描边" disabled={busy || !available} onClick={() => void editShape(true)}>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="4" strokeDasharray="3 2" /><path d="m3 21 18-18" /></svg>
+        </button>
+        <button data-liquid-glass="accent" className="primary" type="button" disabled={busy || !available} onClick={() => void capture()}>{busy ? "处理中…" : "应用效果"}<span aria-hidden="true">↗</span></button>
         </div>
       </footer>
+      <AboutDialog open={about} onClose={() => setAbout(false)} />
     </main>
   );
 }

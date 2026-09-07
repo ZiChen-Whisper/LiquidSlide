@@ -16,4 +16,11 @@ release-output/
 *.pdb
 
 assets/preview-background.jpg
+/LiquidSlide.ComAddin.dll
+/Microsoft.Web.WebView2.*.dll
+/runtimes/
+/licenses/
+/web/
+/unins*.exe
+/unins*.dat
 液态玻璃开源实现汇总报告.md
