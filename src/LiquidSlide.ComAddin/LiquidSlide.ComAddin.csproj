@@ -13,6 +13,12 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Ribbon.xml" LogicalName="LiquidSlide.Ribbon.xml" />
+    <EmbeddedResource Include="../../assets/经典通透.png" LogicalName="LiquidSlide.Icons.clear.png" />
+    <EmbeddedResource Include="../../assets/白色玻璃.png" LogicalName="LiquidSlide.Icons.white.png" />
+    <EmbeddedResource Include="../../assets/黑色玻璃.png" LogicalName="LiquidSlide.Icons.black.png" />
+    <EmbeddedResource Include="../../assets/柔雾磨砂.png" LogicalName="LiquidSlide.Icons.frost.png" />
+    <EmbeddedResource Include="../../assets/打开面板.png" LogicalName="LiquidSlide.Icons.panel.png" />
+    <EmbeddedResource Include="../../assets/关于.png" LogicalName="LiquidSlide.Icons.about.png" />
     <Reference Include="Extensibility">
       <HintPath>C:\Windows\assembly\GAC\Extensibility\7.0.3300.0__b03f5f7f11d50a3a\extensibility.dll</HintPath>
       <Private>false</Private>

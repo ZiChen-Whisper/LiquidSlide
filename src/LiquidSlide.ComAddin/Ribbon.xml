@@ -12,7 +12,7 @@
           <button id="LiquidSlideOpen" tag="panel" label="打开面板" size="large" getImage="GetRibbonImage" onAction="OnOpenPanel" screentip="打开 LiquidSlide" supertip="重新打开材质预览与参数面板。右键可添加到快速访问工具栏。" />
         </group>
         <group id="LiquidSlideHelp" label="帮助">
-          <button id="LiquidSlideAbout" label="关于" size="large" imageMso="Info" onAction="OnAbout" screentip="关于 LiquidSlide" supertip="查看版本、项目仓库、作者联系方式与开源致谢。" />
+          <button id="LiquidSlideAbout" label="关于" size="large" tag="about" getImage="GetRibbonImage" onAction="OnAbout" screentip="关于 LiquidSlide" supertip="查看版本、项目仓库、作者联系方式与开源致谢。" />
         </group>
       </tab>
     </tabs>

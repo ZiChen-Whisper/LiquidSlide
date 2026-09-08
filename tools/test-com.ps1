@@ -1,4 +1,4 @@
-param([string]$AssemblyPath, [switch]$KeepOpen)
+﻿param([string]$AssemblyPath, [switch]$KeepOpen)
 $ErrorActionPreference = 'Stop'
 if (Get-Process POWERPNT -ErrorAction SilentlyContinue) {
     throw 'Close PowerPoint before this isolated smoke test. No existing presentations will be touched.'
@@ -38,7 +38,9 @@ try {
     $upper.Fill.Solid(); $upper.Fill.ForeColor.RGB = 255
     $invisible = $slide.Shapes.AddShape(1, 120, 120, 50, 50); $invisible.Visible = 0
     $target.Select(-1)
-    $script:bridge = $bridgeType.GetConstructors()[0].Invoke([object[]]@($app.PSObject.BaseObject))
+    $boundConstructor = $bridgeType.GetConstructors() | Where-Object { $_.GetParameters().Count -eq 2 }
+    $firstWindow = $app.ActiveWindow
+    $script:bridge = $boundConstructor.Invoke([object[]]@($app.PSObject.BaseObject, [int]$firstWindow.HWND))
     $shape = Read-Selection
     $payload = Target-Payload $shape
     $background = Invoke-Bridge 'CaptureBackground' $payload
@@ -62,15 +64,34 @@ try {
     $other = $app.Presentations.Add(-1)
     $otherSlide = $other.Slides.Add(1, 12)
     $otherShape = $otherSlide.Shapes.AddShape(5, 100, 100, 200, 100); $otherShape.Select(-1)
-    $wrongDeck = $json.DeserializeObject($json.Serialize((Invoke-Bridge 'ApplyFill' $payload)))
-    Assert-True (-not $wrongDeck['applied']) 'Another presentation rejects the old document frame'
+    $firstBridge = $script:bridge
+    $ownerRejected = $false
+    try { Invoke-Bridge 'ApplyFill' $payload | Out-Null }
+    catch { $ownerRejected = $_.Exception.Message -match '窗口已切换' }
+    Assert-True $ownerRejected 'First-window bridge refuses writes while a different presentation is active'
+    $script:bridge = $boundConstructor.Invoke([object[]]@($app.PSObject.BaseObject, [int]$app.ActiveWindow.HWND))
+    $secondShape = Read-Selection
+    Invoke-Bridge 'RemoveOutline' (Target-Payload $secondShape) | Out-Null
+    Assert-True ($otherShape.Line.Visible -eq 0) 'Second-window bridge operates on its own shape'
+    $firstWindow.Activate(); $target.Select(-1)
+    $script:bridge = $firstBridge
+    Assert-True ((Read-Selection)['id'] -eq $shape['id']) 'Returning to first window restores its bridge'
+    $secondView = $firstWindow.NewWindow()
+    $secondView.Activate(); $target.Select(-1)
+    $sameDocumentRejected = $false
+    try { Invoke-Bridge 'InspectSelection' $null | Out-Null }
+    catch { $sameDocumentRejected = $_.Exception.Message -match '窗口已切换' }
+    Assert-True $sameDocumentRejected 'Two views of one presentation cannot borrow each other''s bridge'
+    $secondView.Close()
+    $other.Windows[1].Activate(); $otherShape.Select(-1)
+    $script:bridge = $boundConstructor.Invoke([object[]]@($app.PSObject.BaseObject, [int]$app.ActiveWindow.HWND))
     $triangle = $otherSlide.Shapes.AddShape(7, 100, 100, 100, 100); $triangle.Select(-1)
     $rejected = $false
     try { Invoke-Bridge 'InspectSelection' $null | Out-Null } catch { $rejected = $_.Exception.Message -match '\u6b63\u5706|\u5706\u89d2\u77e9\u5f62' }
     Assert-True $rejected 'Unsupported triangle returns an actionable selection error'
     $ribbon = [Activator]::CreateInstance($assembly.GetType('LiquidSlide.ComAddin.ComAddin'))
     [xml]$xml = $ribbon.GetCustomUI('Microsoft.PowerPoint.Presentation')
-    Assert-True ($xml.customUI.ribbon.tabs.tab.group.button.Count -eq 5) 'Ribbon resource contains four materials and the panel command'
+    Assert-True ($xml.customUI.ribbon.tabs.tab.group.button.Count -eq 6) 'Ribbon resource contains four materials, panel and About commands'
     foreach ($button in $xml.customUI.ribbon.tabs.tab.group.button) {
         $imageMethod = $assembly.GetType('LiquidSlide.ComAddin.RibbonImages').GetMethod('Get', [Reflection.BindingFlags]'Static,NonPublic')
         $icon = $imageMethod.Invoke($null, [object[]]@([string]$button.tag))
@@ -84,7 +105,7 @@ try {
         for ($tagIndex = $target.Tags.Count; $tagIndex -ge 1; $tagIndex--) {
             if ($target.Tags.Name($tagIndex).StartsWith('LIQUIDSLIDE_SETTINGS_V1_')) { $target.Tags.Delete($target.Tags.Name($tagIndex)) }
         }
-        $sample = Join-Path $PSScriptRoot '..\assets\preview-background.jpg'
+        $sample = Join-Path $PSScriptRoot '..\assets\preview-background.png'
         if (Test-Path -LiteralPath $sample) { $lower.Fill.UserPicture((Resolve-Path $sample).Path) }
         $upper.Width = 70; $upper.Height = 30; $upper.Left = 260; $upper.Top = 85
         $target.Select(-1)

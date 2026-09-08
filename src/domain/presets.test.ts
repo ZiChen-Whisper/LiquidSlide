@@ -17,6 +17,6 @@ describe("material presets", () => {
   it("does not mutate preset colors through returned settings", () => {
     const settings = applyPreset("white", cloneSettings());
     settings.tint.a = 0;
-    expect(applyPreset("white", cloneSettings()).tint.a).toBe(0.5);
+    expect(applyPreset("white", cloneSettings()).tint.a).toBe(0.6);
   });
 });

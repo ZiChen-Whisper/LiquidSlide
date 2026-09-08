@@ -20,12 +20,14 @@ namespace LiquidSlide.ComAddin
     public sealed class LiquidSlideWindow : UserControl
     {
         private PowerPointBridge bridge;
-        internal static LiquidSlideWindow Current { get; private set; }
         private bool ready;
-        private bool pendingAbout;
-        private bool paneVisible = true;
+        private bool paneVisible;
+        private bool windowActive;
+        private bool initializing;
+        private bool effectiveVisible;
         private object pendingCommand;
         private bool commandBusy;
+        private string commandId;
         private bool watchSelection;
         private bool handlingRequest;
         private string observedSelection;
@@ -37,23 +39,63 @@ namespace LiquidSlide.ComAddin
 
         public LiquidSlideWindow()
         {
-            Current = this;
             MinimumSize = new Size(340, 560);
             Controls.Add(webView);
-            Load += async (_, __) => await InitializeWebViewAsync();
+            Load += async (_, __) => { if (bridge != null) await InitializeWebViewAsync(); };
             selectionWatcher.Tick += CheckSelection;
         }
 
-        internal void SetPaneVisible(bool visible)
+        internal void Bind(PowerPoint.Application application, int windowId)
         {
-            paneVisible = visible;
-            if (!visible) { watchSelection = false; selectionWatcher.Stop(); }
-            if (ready) webView.CoreWebView2.PostWebMessageAsJson(visible ? "{\"type\":\"shown\"}" : "{\"type\":\"hidden\"}");
+            if (bridge != null) throw new InvalidOperationException("面板已经绑定到窗口。");
+            bridge = new PowerPointBridge(application, windowId);
+            windowActive = bridge.IsOwnerActive;
+            effectiveVisible = paneVisible && windowActive;
+            if (IsHandleCreated) _ = InitializeWebViewAsync();
+        }
+
+        internal void SetPaneVisible(bool visible) { paneVisible = visible; UpdateAvailability(); }
+        internal void SetWindowActive(bool active)
+        {
+            if (!active && windowActive)
+            {
+                pendingCommand = null;
+                commandId = null;
+                commandBusy = false;
+                // Cancel even when this pane was already hidden.
+                if (ready) webView.CoreWebView2?.PostWebMessageAsJson("{\"type\":\"cancelCommand\"}");
+            }
+            windowActive = active;
+            UpdateAvailability();
+        }
+
+        private void UpdateAvailability()
+        {
+            if (IsDisposed || Disposing) return;
+            var visible = paneVisible && windowActive;
+            if (!visible)
+            {
+                selectionWatcher.Stop();
+            }
+            if (effectiveVisible == visible) return;
+            effectiveVisible = visible;
+            SendVisibility();
+        }
+
+        private void SendVisibility()
+        {
+            if (!ready || IsDisposed || Disposing) return;
+            try
+            {
+                webView.CoreWebView2?.PostWebMessageAsJson(effectiveVisible ? "{\"type\":\"shown\"}" : "{\"type\":\"hidden\"}");
+            }
+            catch (Exception error) when (error is COMException || error is InvalidOperationException)
+            { System.Diagnostics.Debug.WriteLine("LiquidSlide pane visibility: " + error.Message); }
         }
 
         private void CheckSelection(object sender, EventArgs args)
         {
-            if (!watchSelection || !paneVisible || !ready || handlingRequest || Control.MouseButtons != MouseButtons.None) return;
+            if (!watchSelection || !effectiveVisible || !bridge.IsOwnerActive || !ready || handlingRequest || Control.MouseButtons != MouseButtons.None) return;
             string fingerprint;
             try { fingerprint = bridge.SelectionFingerprint(); }
             catch (COMException) { return; } // PowerPoint is busy; do not interfere with an edit.
@@ -71,7 +113,8 @@ namespace LiquidSlide.ComAddin
             {
                 selectionWatcher.Stop();
                 selectionWatcher.Dispose();
-                if (Current == this) Current = null;
+                pendingCommand = null;
+                ready = false;
             }
             base.Dispose(disposing);
         }
@@ -80,28 +123,23 @@ namespace LiquidSlide.ComAddin
         {
             if (commandBusy) throw new InvalidOperationException("正在应用材质，请稍后重试。");
             if (bridge == null) throw new InvalidOperationException("面板正在启动，请稍后重试。");
+            if (!bridge.IsOwnerActive) throw new InvalidOperationException("请在此面板所属的 PowerPoint 窗口中应用材质。");
             var selection = serializer.DeserializeObject(serializer.Serialize(bridge.InspectSelection())) as IDictionary<string, object>;
-            pendingCommand = new { type = "preset", preset, shape = selection["shape"] };
+            commandId = Guid.NewGuid().ToString("N");
+            pendingCommand = new { type = "preset", preset, shape = selection["shape"], commandId };
             commandBusy = true;
+            // Create native handles without making the Office pane visible.
+            var controlHandle = Handle;
+            var browserHandle = webView.Handle;
+            _ = InitializeWebViewAsync();
             SendPendingCommand();
         }
 
         private void SendPendingCommand()
         {
-            if (ready && pendingAbout)
-            {
-                webView.CoreWebView2.PostWebMessageAsJson("{\"type\":\"about\"}");
-                pendingAbout = false;
-            }
             if (!ready || pendingCommand == null) return;
             webView.CoreWebView2.PostWebMessageAsJson(serializer.Serialize(pendingCommand));
             pendingCommand = null;
-        }
-
-        internal void ShowAbout()
-        {
-            pendingAbout = true;
-            SendPendingCommand();
         }
 
         private static void OpenExternalLink(string address)
@@ -113,14 +151,15 @@ namespace LiquidSlide.ComAddin
 
         private async Task InitializeWebViewAsync()
         {
-            if (webView.CoreWebView2 != null) return;
+            if (initializing || IsDisposed || Disposing || bridge == null || webView.CoreWebView2 != null) return;
+            initializing = true;
             try
             {
-                var application = ComAddin.CurrentApplication ?? throw new InvalidOperationException("PowerPoint connection is not ready.");
-                bridge = new PowerPointBridge(application);
                 var userData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LiquidSlide", "WebView2");
                 var environment = await CoreWebView2Environment.CreateAsync(null, userData);
+                if (IsDisposed || Disposing) return;
                 await webView.EnsureCoreWebView2Async(environment);
+                if (IsDisposed || Disposing) return;
                 var webRoot = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "web");
                 webView.CoreWebView2.SetVirtualHostNameToFolderMapping("liquidslide.local", webRoot, CoreWebView2HostResourceAccessKind.DenyCors);
                 webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
@@ -135,13 +174,19 @@ namespace LiquidSlide.ComAddin
             }
             catch (Exception exception)
             {
+                if (IsDisposed || Disposing) return;
+                pendingCommand = null;
+                commandId = null;
+                commandBusy = false;
                 MessageBox.Show("LiquidSlide 需要 Microsoft Edge WebView2 Runtime。\n\n" + exception.Message,
                     "LiquidSlide 启动失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+            finally { initializing = false; }
         }
 
         private void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
         {
+            if (IsDisposed || Disposing) return;
             handlingRequest = true;
             IDictionary<string, object> request = null;
             object id = null;
@@ -152,22 +197,30 @@ namespace LiquidSlide.ComAddin
                 id = request["id"];
                 var type = Convert.ToString(request["type"]);
                 var payload = request.ContainsKey("payload") ? request["payload"] as IDictionary<string, object> : new Dictionary<string, object>();
+                var ribbonCommand = request.TryGetValue("commandId", out var token) && commandId != null && Convert.ToString(token) == commandId;
+                if ((type == "captureBackground" || type == "applyFill" || type == "applyShadow" || type == "removeOutline") &&
+                    (!bridge.IsOwnerActive || (token != null ? !ribbonCommand : !effectiveVisible)))
+                    throw new InvalidOperationException("面板已关闭或窗口已切换，操作已停止。");
                 object result;
                 switch (type)
                 {
+                    // Acknowledge before opening the modal, so a long visit cannot time out the bridge.
+                    case "showAbout": BeginInvoke(new Action(AboutWindow.ShowAbout)); result = true; break;
                     case "watchSelection":
                         watchSelection = Convert.ToBoolean(payload["enabled"]);
-                        if (watchSelection && paneVisible)
+                        if (watchSelection && effectiveVisible && bridge.IsOwnerActive)
                         {
                             observedSelection = publishedSelection = null;
                             selectionWatcher.Start();
                         }
                         else selectionWatcher.Stop();
                         result = true; break;
-                    case "ready": ready = true; SendPendingCommand(); result = true; break;
+                    case "ready": ready = true; SendVisibility(); SendPendingCommand(); result = true; break;
                     case "commandFinished":
+                        if (!ribbonCommand) { result = false; break; }
                         commandBusy = false;
-                        if (payload.TryGetValue("error", out var error) && error != null)
+                        commandId = null;
+                        if (payload.TryGetValue("error", out var error) && error != null && bridge.IsOwnerActive)
                             MessageBox.Show(Convert.ToString(error), "LiquidSlide", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         result = true; break;
                     case "inspectSelection": result = bridge.InspectSelection(); break;
@@ -176,7 +229,6 @@ namespace LiquidSlide.ComAddin
                         observedSelection = publishedSelection = bridge.SelectionFingerprint();
                         break;
                     case "applyFill":
-                        if (!paneVisible) throw new InvalidOperationException("面板已关闭，应用已停止。");
                         result = bridge.ApplyFill(payload); break;
                     case "applyShadow": result = bridge.ApplyShadow(payload); break;
                     case "removeOutline": result = bridge.RemoveOutline(payload); break;

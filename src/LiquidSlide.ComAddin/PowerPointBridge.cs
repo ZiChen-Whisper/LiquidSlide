@@ -14,6 +14,7 @@ namespace LiquidSlide.ComAddin
     {
         private const string TagPrefix = "LIQUIDSLIDE_SETTINGS_V1_";
         private readonly PowerPoint.Application application;
+        private readonly int ownerWindowId;
         private readonly JavaScriptSerializer serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
         private readonly Dictionary<PowerPoint.Presentation, string> presentationIds = new Dictionary<PowerPoint.Presentation, string>();
 
@@ -24,16 +25,39 @@ namespace LiquidSlide.ComAddin
             return id;
         }
 
-        public PowerPointBridge(PowerPoint.Application application) { this.application = application; }
+        public PowerPointBridge(PowerPoint.Application application, int ownerWindowId)
+        {
+            if (ownerWindowId == 0) throw new ArgumentException("必须指定面板所属窗口。", nameof(ownerWindowId));
+            this.application = application;
+            this.ownerWindowId = ownerWindowId;
+        }
+
+        internal bool IsOwnerActive
+        {
+            get
+            {
+                try { return application.ActiveWindow != null && application.ActiveWindow.HWND == ownerWindowId; }
+                catch (Exception error) when (error is COMException || error is InvalidComObjectException) { return false; }
+            }
+        }
+
+        private PowerPoint.DocumentWindow RequireWindow()
+        {
+            var window = application.ActiveWindow ?? throw new InvalidOperationException("没有活动的 PowerPoint 编辑窗口。");
+            if (window.HWND != ownerWindowId)
+                throw new InvalidOperationException("PowerPoint 窗口已切换，操作已停止。请回到此面板所属的窗口重试。");
+            return window;
+        }
 
         public string SelectionFingerprint()
         {
-            var presentation = RequirePresentation();
-            var selection = application.ActiveWindow?.Selection;
+            var window = RequireWindow();
+            var presentation = window.Presentation;
+            var selection = window.Selection;
             if (selection == null || selection.Type != PowerPoint.PpSelectionType.ppSelectionShapes || selection.ShapeRange.Count != 1)
                 return "no-selection";
             var shape = selection.ShapeRange[1];
-            var slide = (PowerPoint.Slide)application.ActiveWindow.View.Slide;
+            var slide = (PowerPoint.Slide)window.View.Slide;
             float? adjustment = null;
             if (shape.Type == Office.MsoShapeType.msoAutoShape && shape.Adjustments.Count > 0) adjustment = shape.Adjustments[1];
             return serializer.Serialize(new {
@@ -46,9 +70,10 @@ namespace LiquidSlide.ComAddin
 
         public object InspectSelection()
         {
-            var presentation = RequirePresentation();
-            var view = application.ActiveWindow?.View ?? throw new InvalidOperationException("没有活动的 PowerPoint 编辑窗口。");
-            var selection = application.ActiveWindow.Selection;
+            var window = RequireWindow();
+            var presentation = window.Presentation;
+            var view = window.View;
+            var selection = window.Selection;
             if (selection == null || selection.Type != PowerPoint.PpSelectionType.ppSelectionShapes || selection.ShapeRange.Count != 1)
                 throw new InvalidOperationException("请只选择一个正圆或圆角矩形。");
 
@@ -192,7 +217,7 @@ namespace LiquidSlide.ComAddin
         }
 
         private PowerPoint.Presentation RequirePresentation() =>
-            application.ActivePresentation ?? throw new InvalidOperationException("没有打开的演示文稿。");
+            RequireWindow().Presentation ?? throw new InvalidOperationException("没有打开的演示文稿。");
 
         private PowerPoint.Slide FindSlideForShape(int shapeId, int slideId, out PowerPoint.Shape found)
         {

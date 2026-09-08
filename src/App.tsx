@@ -8,8 +8,8 @@ import { ParameterControl } from "./ui/ParameterControl";
 import { PARAMETER_GROUPS } from "./ui/parameterDefinitions";
 import { Preview, type PreviewSource } from "./ui/Preview";
 import { MATERIAL_PRESETS, applyPreset } from "./domain/presets";
-import { LiquidGlassUi } from "./ui/LiquidGlassUi";
-import { AboutDialog } from "./ui/AboutDialog";
+
+const COMMON_PARAMETERS = new Set(["blur", "thickness", "specularStrength"]);
 
 function hexToRgb(hex: string) {
   const value = Number.parseInt(hex.replace("#", ""), 16);
@@ -30,7 +30,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<PreviewSource | null>(null);
   const [advanced, setAdvanced] = useState(false);
-  const [about, setAbout] = useState(false);
+  const [paneVisible, setPaneVisible] = useState(true);
   const [real, setReal] = useState(false);
   const [sceneVersion, setSceneVersion] = useState(0);
   const revision = useRef(0);
@@ -39,7 +39,7 @@ export default function App() {
     storeSettings(value);
   }, []);
   const actionBusy = useRef(false);
-  const commandHandler = useRef<(preset: string, shape: SelectedShapeInfo) => void>(() => {});
+  const commandHandler = useRef<(preset: string, shape: SelectedShapeInfo, commandId?: string) => void>(() => {});
   const showSample = useCallback(() => {
     revision.current++;
     setReal(false);
@@ -80,28 +80,32 @@ export default function App() {
         ? "未连接 PowerPoint COM 宿主"
         : !webGpuSupported ? "当前 WebView2 不支持 WebGPU" : "运行环境可用"
     });
-    void refreshSelection();
     return () => {
       renderer.destroy();
     };
   }, [adapter, refreshSelection, renderer]);
 
   useEffect(() => {
-    adapter.onPreset = (preset, shape) => commandHandler.current(preset, shape);
-    adapter.onHidden = showSample;
-    adapter.onAbout = () => setAbout(true);
+    adapter.onPreset = (preset, shape, commandId) => commandHandler.current(preset, shape, commandId);
+    adapter.onCancelCommand = () => { revision.current++; };
+    adapter.onHidden = () => { revision.current++; setPaneVisible(false); setSource(null); };
+    adapter.onShown = () => setPaneVisible(true);
     adapter.onSelectionChanged = () => { revision.current++; setSceneVersion((value) => value + 1); };
-    if (adapter.available) void adapter.ready().catch((error: Error) => setStatus(error.message));
-    return () => { adapter.onPreset = undefined; adapter.onHidden = undefined; adapter.onAbout = undefined; adapter.onSelectionChanged = undefined; };
-  }, [adapter, showSample]);
+    let cancelled = false;
+    // Finish initial selection loading before the host can deliver a queued shortcut.
+    void refreshSelection().then(() => {
+      if (!cancelled && adapter.available) return adapter.ready();
+    }).catch((error: Error) => setStatus(error.message));
+    return () => { cancelled = true; adapter.onPreset = undefined; adapter.onCancelCommand = undefined; adapter.onHidden = undefined; adapter.onShown = undefined; adapter.onSelectionChanged = undefined; };
+  }, [adapter, refreshSelection]);
 
   useEffect(() => {
-    if (adapter.available) void adapter.watchSelection(real).catch((error: Error) => setStatus(error.message));
+    if (adapter.available) void adapter.watchSelection(real && paneVisible).catch((error: Error) => setStatus(error.message));
     return () => { if (adapter.available) void adapter.watchSelection(false).catch(() => {}); };
-  }, [real, adapter]);
+  }, [real, paneVisible, adapter]);
 
   useEffect(() => {
-    if (!real || busy) return;
+    if (!real || busy || !paneVisible) return;
     let cancelled = false;
     const refresh = async () => {
       try {
@@ -124,11 +128,11 @@ export default function App() {
     };
     void refresh();
     return () => { cancelled = true; };
-  }, [real, sceneVersion, busy, coordinator]);
+  }, [real, sceneVersion, busy, paneVisible, coordinator]);
 
-  const capture = async (preset?: string, target?: SelectedShapeInfo) => {
+  const capture = async (preset?: string, target?: SelectedShapeInfo, commandId?: string) => {
     if (actionBusy.current) {
-      if (preset) await adapter.commandFinished("正在处理上一次操作，请稍后重试。");
+      if (preset) await adapter.commandFinished("正在处理上一次操作，请稍后重试。", commandId);
       return;
     }
     revision.current++;
@@ -139,23 +143,23 @@ export default function App() {
       // Let an invalidated preview release the shared host transaction.
       while (coordinator.busy && version === revision.current) await new Promise((resolve) => window.setTimeout(resolve, 30));
       if (version !== revision.current) throw new Error("操作已取消。");
+      adapter.commandId = commandId;
       setStatus("正在生成并更新图形填充…");
       const result = await coordinator.run(preset ? applyPreset(preset, settings) : settings, true,
         () => version === revision.current, target, true);
       if (!result) throw new Error("图形已移动或选区已变化，请重新应用。");
       setSelectedShape(result.shape);
       setSettings(result.settings);
-      setSource(result);
-      setReal(true);
+      if (real) setSource(result);
       setStatus(`已更新 · ${result.rendered.width} × ${result.rendered.height} px`);
-      if (preset) await adapter.commandFinished();
+      if (preset) await adapter.commandFinished(undefined, commandId);
     } catch (reason) {
       const error = reason instanceof Error ? reason.message : "操作失败，请重试。";
       setStatus(error);
-      if (preset) await adapter.commandFinished(error);
-    } finally { setBusy(false); actionBusy.current = false; }
+      if (preset) await adapter.commandFinished(error, commandId);
+    } finally { adapter.commandId = undefined; setBusy(false); actionBusy.current = false; }
   };
-  commandHandler.current = (preset, shape) => { void capture(preset, shape); };
+  commandHandler.current = (preset, shape, commandId) => { void capture(preset, shape, commandId); };
   const editShape = async (outline: boolean) => {
     if (actionBusy.current) return;
     revision.current++;
@@ -174,17 +178,16 @@ export default function App() {
   const available = capabilities.officeApiSupported && capabilities.webGpuSupported;
   return (
     <main>
-      <LiquidGlassUi paused={busy} />
       <header>
         <div>
-          <h1>LiquidSlide</h1>
+          <div className="brand"><img src="assets/brand.svg" alt="" /><h1>LiquidSlide</h1></div>
           <p>Liquid Glass for PowerPoint</p>
-          <button className="about-link" onClick={() => setAbout(true)}>关于 LiquidSlide</button>
         </div>
-        <span data-liquid-glass="white" className={available ? "badge ok" : "badge error"}>{capabilities.message}</span>
+        <button className="about-link" disabled={!adapter.available} onClick={() => void adapter.showAbout().catch((error: Error) => setStatus(error.message))}>关于</button>
+        <span className={available ? "badge ok" : "badge error"} title={capabilities.message}>{available ? "已连接 PowerPoint" : capabilities.message}</span>
       </header>
 
-      <div className="preview-card" data-liquid-glass="white">
+      <div className="preview-card">
         <div className="card-heading"><h2>材质预览</h2></div>
         <Preview settings={settings} renderer={renderer} source={real ? source : null} real={real}
           disabled={busy} available={available} onModeChange={(value) => value ? setReal(true) : showSample()} />
@@ -194,24 +197,32 @@ export default function App() {
       </div>
 
       <fieldset disabled={busy} className="material-settings">
-      <section className="presets-section" data-liquid-glass="white">
+      <section className="presets-section">
         <div className="card-heading"><h2>材质</h2><span>选择一种质感</span></div>
         <div className="preset-grid">
           {MATERIAL_PRESETS.map((preset) => {
             const active = JSON.stringify(applyPreset(preset.id, settings)) === JSON.stringify(settings);
-            return <button key={preset.id} data-liquid-glass="white" className={`preset ${preset.id} ${active ? "active" : ""}`} aria-pressed={active}
+            return <button key={preset.id} className={`preset ${preset.id} ${active ? "active" : ""}`} aria-pressed={active}
               onClick={() => setSettings(applyPreset(preset.id, settings))}>
-              <span className="swatch" aria-hidden="true"><i /></span>
+              <img className="material-icon" src={`assets/${preset.name}.png`} alt="" />
               <span><strong>{preset.name}</strong><small>{preset.description}</small></span>
             </button>;
           })}
         </div>
       </section>
+      <section className="quick-settings">
+        <div className="card-heading"><h2>自定义材质</h2><button className="text-button" onClick={() => setSettings(applyPreset("clear", settings))}>重置</button></div>
+        {PARAMETER_GROUPS.flatMap((group) => group.parameters).filter((parameter) => COMMON_PARAMETERS.has(parameter.key)).map((parameter) => (
+          <ParameterControl key={parameter.key} definition={parameter} value={settings[parameter.key] as number} defaultValue={DEFAULT_SETTINGS[parameter.key] as number} onChange={(value) => setSettings({ ...settings, [parameter.key]: value })} />
+        ))}
+        <label className="select-row">玻璃颜色<input aria-label="玻璃颜色" type="color" value={rgbToHex(settings.tint)} onChange={(event) => setSettings({ ...settings, tint: { ...settings.tint, ...hexToRgb(event.target.value) } })} /></label>
+        <label className="select-row">染色强度<input aria-label="染色强度" type="number" min="0" max="1" step="0.01" value={settings.tint.a} onChange={(event) => setSettings({ ...settings, tint: { ...settings.tint, a: Math.min(1, Math.max(0, Number(event.target.value))) } })} /></label>
+      </section>
       <button className="advanced-toggle" aria-expanded={advanced} aria-controls="advanced-settings" onClick={() => setAdvanced(!advanced)}>
         <span>高级设置 <small>微调材质参数</small></span><span aria-hidden="true">{advanced ? "−" : "+"}</span>
       </button>
       {advanced && <div id="advanced-settings">
-      <section data-liquid-glass="white">
+      <section>
         <label className="select-row">输出倍率
           <select value={settings.outputScale} onChange={(event) => setSettings({ ...settings, outputScale: Number(event.target.value) as 1 | 2 | 3 })}>
             <option value={1}>1×</option><option value={2}>2×（默认）</option><option value={3}>3×</option>
@@ -223,9 +234,9 @@ export default function App() {
           </select>
         </label>}
       </section>      {PARAMETER_GROUPS.map((group) => (
-        <details data-liquid-glass="white" key={group.title} open={group.title !== "高级"}>
+        <details key={group.title} open={group.title !== "高级"}>
           <summary>{group.title}</summary>
-          {group.parameters.map((parameter) => (
+          {group.parameters.filter((parameter) => !COMMON_PARAMETERS.has(parameter.key)).map((parameter) => (
             <ParameterControl
               key={parameter.key}
               definition={parameter}
@@ -248,16 +259,6 @@ export default function App() {
               </select>
             </label>
           )}
-          {group.title === "颜色与合成" && (
-            <>
-              <label className="select-row">玻璃颜色
-                <input type="color" value={rgbToHex(settings.tint)} onChange={(event) => setSettings({ ...settings, tint: { ...settings.tint, ...hexToRgb(event.target.value) } })} />
-              </label>
-              <label className="select-row">颜色透明度
-                <input type="number" min="0" max="1" step="0.01" value={settings.tint.a} onChange={(event) => setSettings({ ...settings, tint: { ...settings.tint, a: Math.min(1, Math.max(0, Number(event.target.value))) } })} />
-              </label>
-            </>
-          )}
           {group.title === "高级" && (
             <>
               <label className="check"><input type="checkbox" checked={settings.normalDivergenceBlendEnabled} onChange={(event) => setSettings({ ...settings, normalDivergenceBlendEnabled: event.target.checked })} />启用法线门控</label>
@@ -273,20 +274,19 @@ export default function App() {
       <footer>
         <p className="status" role="status">{status}</p>
         <div className="footer-actions">
-      <button data-liquid-glass="white" className="secondary shadow-action" type="button" title="添加图形阴影" aria-label="添加图形阴影" disabled={busy || !available} onClick={() => void editShape(false)}>
+      <button className="secondary shadow-action" type="button" title="添加图形阴影" aria-label="添加图形阴影" disabled={busy || !available} onClick={() => void editShape(false)}>
           <svg viewBox="0 0 28 28" width="26" height="26" fill="none" aria-hidden="true">
             <rect x="7" y="10" width="17" height="13" rx="4" fill="currentColor" opacity=".08" />
             <rect x="6" y="9" width="17" height="13" rx="4" fill="currentColor" opacity=".14" />
             <rect x="4" y="5" width="17" height="13" rx="4" fill="#f0f1ff" stroke="currentColor" strokeWidth="1.4" />
           </svg>
         </button>
-        <button data-liquid-glass="white" className="secondary shadow-action" type="button" title="去除图形描边" aria-label="去除图形描边" disabled={busy || !available} onClick={() => void editShape(true)}>
+        <button className="secondary shadow-action" type="button" title="去除图形描边" aria-label="去除图形描边" disabled={busy || !available} onClick={() => void editShape(true)}>
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="4" strokeDasharray="3 2" /><path d="m3 21 18-18" /></svg>
         </button>
-        <button data-liquid-glass="accent" className="primary" type="button" disabled={busy || !available} onClick={() => void capture()}>{busy ? "处理中…" : "应用效果"}<span aria-hidden="true">↗</span></button>
+        <button className="primary" type="button" disabled={busy || !available} onClick={() => void capture()}>{busy ? "处理中…" : "应用效果"}</button>
         </div>
       </footer>
-      <AboutDialog open={about} onClose={() => setAbout(false)} />
     </main>
   );
 }

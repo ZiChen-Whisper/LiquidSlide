@@ -6,15 +6,22 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 
 **[官方网站与在线材质演示](https://liquidslide.zichenzou.chatgpt.site/)** · **[下载 Windows x64 安装包](https://github.com/ZiChen-Whisper/LiquidSlide/releases/latest)** · **[更新日志](https://my.feishu.cn/wiki/TcfsweHDViQZCIkNJ9qcKEtWnpf?from=from_copylink)** · [问题反馈](https://github.com/ZiChen-Whisper/LiquidSlide/issues)
 
-当前版本 **0.1.0** · 免费开源 · MIT 许可证
+当前版本 **0.1.1** · 免费开源 · MIT 许可证
 
 ## 实际效果
 
-![LiquidSlide 在 PowerPoint 中的四种玻璃效果与蓝紫色任务面板](docs/images/powerpoint-real-effect.png)
+![LiquidSlide 在 PowerPoint 中的四种玻璃效果与蓝紫色任务面板](assets/演示效果.png)
 
-与官网一致的 PowerPoint 实际截图，由维护者提供。左侧展示经典通透、白色玻璃、黑色玻璃和柔雾磨砂等应用效果，右侧为当前蓝紫色任务面板，截图中的材质预览处于“示例”模式。
+与官网一致的 PowerPoint 实际截图，由维护者提供。左侧展示经典通透、白色玻璃、黑色玻璃和柔雾磨砂等应用效果，右侧为新版蓝紫白色任务面板，截图中的材质预览处于“示例”模式。
 
 前往 [官方网站](https://liquidslide.zichenzou.chatgpt.site/#materials) 可以直接切换四种材质，查看网页内的光学渲染。网页演示与插件采用同款 Liquid DOM 渲染引擎；写入 PowerPoint 的效果是**静态图片填充**，不会随幻灯片背景自动变化，需要更新时再次点击“应用效果”。
+
+## v0.1.1 更新
+
+- 修复多窗口下的面板归属、关闭后复用和跨窗口操作问题
+- 材质快捷按钮直接应用效果，保持面板原有显隐状态
+- 更新材质与功能图标、蓝紫白色面板、常用参数布局和独立“关于”窗口
+- 调整白色玻璃与柔雾磨砂的默认染色强度，分别为 0.6 和 0.1
 
 ## 四种材质
 
@@ -27,7 +34,8 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 
 ## 功能
 
-- **融入 PowerPoint**：在右侧任务面板中预览和调整，顶部 LiquidSlide 选项卡提供材质快捷按钮、打开面板和“关于”入口
+- **融入 PowerPoint**：在右侧任务面板中预览和调整，顶部四个材质快捷按钮可直接应用而不弹出面板；需要调整参数时点击“打开面板”
+- **多窗口独立运行**：每个 PowerPoint 编辑窗口拥有自己的面板，关闭一个窗口不影响其他窗口；切换窗口会取消旧操作，避免跨窗写入
 - **保留原图形**：支持单选正圆和圆角矩形，生成效果后填回原对象，保留文字
 - **示例 / 真实预览**：示例模式便于比较材质；真实模式读取选中图形下方的幻灯片内容，图形几何变化并停稳后刷新
 - **四种预设与高级设置**：一键选择材质，也可展开高级设置微调折射、模糊、色散、高光等参数
@@ -37,7 +45,7 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 
 ## 安装
 
-1. 前往 [GitHub Releases](https://github.com/ZiChen-Whisper/LiquidSlide/releases/latest)，下载 `LiquidSlide-0.1.0-windows-x64-setup.exe`
+1. 前往 [GitHub Releases](https://github.com/ZiChen-Whisper/LiquidSlide/releases/latest)，下载 `LiquidSlide-0.1.1-windows-x64-setup.exe`
 2. 保存演示文稿并关闭 PowerPoint，然后运行安装程序
 3. 重新打开 PowerPoint，在顶部找到 **LiquidSlide → 打开面板**
 
@@ -55,10 +63,14 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 Release 附带 `SHA256SUMS.txt`，可用 PowerShell 校验安装包：
 
 ```powershell
-Get-FileHash .\LiquidSlide-0.1.0-windows-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\LiquidSlide-0.1.1-windows-x64-setup.exe -Algorithm SHA256
 ```
 
 ## 使用方法
+
+**快速应用**：单选正圆或圆角矩形，直接点击顶部 LiquidSlide 选项卡中的任一材质按钮，无需打开面板。
+
+需要预览和自定义参数时：
 
 1. 在幻灯片中单选一个正圆或圆角矩形，打开 **LiquidSlide → 打开面板**
 2. 选择一种材质，或展开“高级设置”微调参数
