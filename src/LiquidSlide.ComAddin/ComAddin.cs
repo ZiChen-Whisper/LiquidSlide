@@ -32,16 +32,30 @@ namespace LiquidSlide.ComAddin
         private bool disconnecting;
         private readonly WindowPaneRegistry<WindowPane> panes;
 
-        public ComAddin() { panes = new WindowPaneRegistry<WindowPane>(IsAlive, ReleasePane); }
+        static ComAddin() { StartupDiagnostics.Initialize(); }
+
+        public ComAddin()
+        {
+            StartupDiagnostics.Write("ComAddin constructor entered");
+            try { panes = new WindowPaneRegistry<WindowPane>(IsAlive, ReleasePane); }
+            catch (Exception error) { StartupDiagnostics.Write("ComAddin constructor failed", error); throw; }
+            StartupDiagnostics.Write("ComAddin constructor completed");
+        }
 
         public void OnConnection(object Application, ext_ConnectMode ConnectMode, object AddInInst, ref Array custom)
         {
-            disconnecting = false;
-            application = (PowerPoint.Application)Application;
-            CurrentApplication = application;
-            application.WindowActivate += WindowActivated;
-            application.WindowDeactivate += WindowDeactivated;
-            application.PresentationClose += PresentationClosed;
+            StartupDiagnostics.Write("OnConnection entered");
+            try
+            {
+                disconnecting = false;
+                application = (PowerPoint.Application)Application;
+                CurrentApplication = application;
+                application.WindowActivate += WindowActivated;
+                application.WindowDeactivate += WindowDeactivated;
+                application.PresentationClose += PresentationClosed;
+                StartupDiagnostics.Write("OnConnection completed");
+            }
+            catch (Exception error) { StartupDiagnostics.Write("OnConnection failed", error); throw; }
         }
 
         public string GetCustomUI(string ribbonId)

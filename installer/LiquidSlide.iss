@@ -26,6 +26,7 @@ CloseApplications=no
 Source: "..\src\LiquidSlide.ComAddin\bin\x64\Release\net48\*"; DestDir: "{app}"; Excludes: "web\assets\preview-background.jpg,*.pdb,*.reg,Microsoft.Web.WebView2.Wpf.dll,runtimes\win-arm64\*,runtimes\win-x86\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\tools\install-com-addin.ps1"; DestDir: "{app}\tools"
 Source: "..\tools\uninstall-com-addin.ps1"; DestDir: "{app}\tools"
+Source: "..\tools\diagnose-com-activation.ps1"; DestDir: "{app}\tools"
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"
 Source: "..\LICENSE"; DestDir: "{app}"
 Source: "INSTALL-NOTES.txt"; DestDir: "{app}"

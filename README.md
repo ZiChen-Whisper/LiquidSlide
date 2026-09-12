@@ -6,7 +6,7 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 
 **[官方网站与在线材质演示](https://liquidslide.zichenzou.chatgpt.site/)** · **[下载 Windows x64 安装包](https://github.com/ZiChen-Whisper/LiquidSlide/releases/latest)** · **[更新日志](https://my.feishu.cn/wiki/TcfsweHDViQZCIkNJ9qcKEtWnpf?from=from_copylink)** · [问题反馈](https://github.com/ZiChen-Whisper/LiquidSlide/issues)
 
-当前版本 **0.1.1** · 免费开源 · MIT 许可证
+当前版本 **0.1.2** · 免费开源 · MIT 许可证
 
 ## 实际效果
 
@@ -16,7 +16,15 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 
 前往 [官方网站](https://liquidslide.zichenzou.chatgpt.site/#materials) 可以直接切换四种材质，查看网页内的光学渲染。网页演示与插件采用同款 Liquid DOM 渲染引擎；写入 PowerPoint 的效果是**静态图片填充**，不会随幻灯片背景自动变化，需要更新时再次点击“应用效果”。
 
-## v0.1.1 更新
+## v0.1.2 更新
+
+- 修复 COM 注册写死程序集版本的问题，安装和升级时自动读取实际 DLL 标识
+- 补充插件目录内的 WebView2 依赖解析与自动启动日志
+- 保存并关闭 PowerPoint 后直接运行新安装包即可升级，无需手动修改注册表
+
+此版本针对加载失败进行修复和诊断增强；已通过本机 COM 激活测试，报告故障的干净环境尚未确认恢复。
+
+### v0.1.1 更新
 
 - 修复多窗口下的面板归属、关闭后复用和跨窗口操作问题
 - 材质快捷按钮直接应用效果，保持面板原有显隐状态
@@ -45,7 +53,7 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 
 ## 安装
 
-1. 前往 [GitHub Releases](https://github.com/ZiChen-Whisper/LiquidSlide/releases/latest)，下载 `LiquidSlide-0.1.1-windows-x64-setup.exe`
+1. 前往 [GitHub Releases](https://github.com/ZiChen-Whisper/LiquidSlide/releases/latest)，下载 `LiquidSlide-0.1.2-windows-x64-setup.exe`
 2. 保存演示文稿并关闭 PowerPoint，然后运行安装程序
 3. 重新打开 PowerPoint，在顶部找到 **LiquidSlide → 打开面板**
 
@@ -63,7 +71,7 @@ LiquidSlide 是一个 Windows 桌面 PowerPoint 加载项，为正圆和圆角�
 Release 附带 `SHA256SUMS.txt`，可用 PowerShell 校验安装包：
 
 ```powershell
-Get-FileHash .\LiquidSlide-0.1.1-windows-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\LiquidSlide-0.1.2-windows-x64-setup.exe -Algorithm SHA256
 ```
 
 ## 使用方法

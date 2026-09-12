@@ -18,6 +18,13 @@ if (-not (Test-Path -LiteralPath $assemblyPath)) {
   throw "Build output not found: $assemblyPath. Run npm run build:all first."
 }
 
+if (-not [Environment]::Is64BitProcess) { throw 'Run registration with 64-bit PowerShell.' }
+$assemblyPath = (Resolve-Path -LiteralPath $assemblyPath).ProviderPath
+# COM binding uses the full assembly identity, not the file/product version.
+$assemblyIdentity = [Reflection.AssemblyName]::GetAssemblyName($assemblyPath)
+if ($assemblyIdentity.Name -ne 'LiquidSlide.ComAddin') { throw 'Not a LiquidSlide COM assembly.' }
+$assemblyFullName = $assemblyIdentity.FullName
+
 New-Item -Path $progIdKey -Force | Out-Null
 Set-Item -Path $progIdKey -Value "LiquidSlide.ComAddin.ComAddin"
 New-Item -Path (Join-Path $progIdKey "CLSID") -Force | Out-Null
@@ -29,7 +36,7 @@ New-Item -Path $inprocKey -Force | Out-Null
 Set-Item -Path $inprocKey -Value "mscoree.dll"
 New-ItemProperty -Path $inprocKey -Name ThreadingModel -Value Both -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $inprocKey -Name Class -Value "LiquidSlide.ComAddin.ComAddin" -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $inprocKey -Name Assembly -Value "LiquidSlide.ComAddin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $inprocKey -Name Assembly -Value $assemblyFullName -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $inprocKey -Name RuntimeVersion -Value "v4.0.30319" -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $inprocKey -Name CodeBase -Value ([Uri]$assemblyPath).AbsoluteUri -PropertyType String -Force | Out-Null
 New-Item -Path (Join-Path $classKey "ProgId") -Force | Out-Null
@@ -46,7 +53,7 @@ New-Item -Path $controlInprocKey -Force | Out-Null
 Set-Item -Path $controlInprocKey -Value "mscoree.dll"
 New-ItemProperty -Path $controlInprocKey -Name ThreadingModel -Value Both -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $controlInprocKey -Name Class -Value "LiquidSlide.ComAddin.LiquidSlideWindow" -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $controlInprocKey -Name Assembly -Value "LiquidSlide.ComAddin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $controlInprocKey -Name Assembly -Value $assemblyFullName -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $controlInprocKey -Name RuntimeVersion -Value "v4.0.30319" -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $controlInprocKey -Name CodeBase -Value ([Uri]$assemblyPath).AbsoluteUri -PropertyType String -Force | Out-Null
 New-Item -Path (Join-Path $controlClassKey "ProgId") -Force | Out-Null
@@ -63,6 +70,8 @@ New-ItemProperty -Path $addinKey -Name LoadBehavior -Value 3 -PropertyType DWord
 New-ItemProperty -Path $addinKey -Name CommandLineSafe -Value 0 -PropertyType DWord -Force | Out-Null
 
 Write-Host "LiquidSlide COM add-in registered for the current user."
+Write-Host "Assembly: $assemblyFullName"
+Write-Host "Path: $assemblyPath"
 if ($powerPointRunning) {
   Write-Host "PowerPoint is already running. Close every PowerPoint window and start it again to load LiquidSlide."
 } elseif (-not $NoLaunch) {
