@@ -13,7 +13,7 @@
 }
 body {
   margin:0;
-  min-width:280px;
+  min-width:0;
   background:linear-gradient(180deg,#e8eafa00 60px,#fff 420px),radial-gradient(ellipse at 0 0,#d6ddff,transparent 65%),radial-gradient(ellipse at 100% 0,#e6dafa,transparent 55%);
   background-repeat:no-repeat;
   background-size:100% 480px;
@@ -489,3 +489,844 @@ input[type=number]:focus, select:focus { border-color:#aaa0d4; background:white;
   .preset.active { outline:2px solid Highlight; }
   input[type=range] { appearance:auto; }
 }
+
+/* Narrow PowerPoint task panes keep controls reachable without horizontal scrolling. */
+.connection { overflow-wrap:anywhere; }
+.connection.ok::before { content:"●"; color:#6665bf; margin-right:5px; }
+.connection.error { color:#986339; }
+.material-settings, section, .parameter, .parameter-inputs { min-width:0; }
+.parameter-inputs { grid-template-columns:minmax(0,1fr) 60px; }
+.select-row { flex-wrap:wrap; gap:8px; }
+select { max-width:100%; }
+
+.user-presets-heading { align-items:center; }
+.user-presets-title { display:flex; align-items:center; gap:6px; min-width:0; }
+.preset-help {
+  position:relative;
+  display:inline-grid;
+  place-items:center;
+  flex:0 0 auto;
+  width:16px;
+  height:16px;
+  border:1px solid #a69bd0;
+  border-radius:50%;
+  color:#756aa5;
+  font-size:11px;
+  font-weight:700;
+  line-height:1;
+  cursor:help;
+}
+.preset-help-tooltip {
+  position:absolute;
+  z-index:20;
+  top:calc(100% + 8px);
+  right:auto;
+  left:0;
+  width:min(230px, calc(100vw - 24px));
+  padding:8px 10px;
+  border:1px solid #dedbeb;
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 8px 20px #39335a22;
+  color:#545460;
+  font-size:10px;
+  font-weight:400;
+  line-height:1.55;
+  text-align:left;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(-3px);
+  pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease, visibility .16s ease;
+}
+.preset-help:hover .preset-help-tooltip,
+.preset-help:focus-visible .preset-help-tooltip {
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0);
+}
+.save-preset-form { display:flex; align-items:center; justify-content:flex-end; gap:5px; min-width:0; }
+.save-preset-form input {
+  width:min(110px, 25vw);
+  min-width:0;
+  height:30px;
+  min-height:30px;
+  padding:4px 8px;
+  border:1px solid #e2e1eb;
+  border-radius:10px;
+  background:#fafafb;
+  color:#545460;
+  font-size:11px;
+}
+.save-preset-button {
+  flex:0 0 auto;
+  width:76px;
+  height:30px;
+  min-height:30px;
+  padding:0 11px;
+  border-radius:10px;
+  font-size:10px;
+  white-space:nowrap;
+}
+.preset-grid.user-preset-grid { margin-top:10px; }
+.user-preset-card {
+  position:relative;
+  min-width:0;
+  min-height:68px;
+  overflow:hidden;
+  border:1px solid #e7e7ed;
+  border-radius:10px;
+  background:#fafafb;
+  color:#33343e;
+  transition:background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.user-preset-card:hover,
+.user-preset-card:focus-within {
+  background:#f2f1fa;
+  border-color:#cbc8e6;
+}
+.user-preset-card.active {
+  background:#f0effb;
+  border-color:#9288ce;
+  box-shadow:0 0 0 1px #9288ce12, 0 3px 10px #7266ac08;
+}
+.user-preset-apply {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  width:100%;
+  min-width:0;
+  min-height:68px;
+  padding:10px 28px 10px 10px;
+  border:0;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+}
+.user-preset-copy { min-width:0; overflow:hidden; }
+.user-preset-copy strong {
+  display:block;
+  overflow:hidden;
+  font-size:12px;
+  font-weight:600;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.user-preset-copy small {
+  display:block;
+  margin-top:5px;
+  overflow:hidden;
+  color:#737584;
+  font-size:10px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.user-preset-preview {
+  position:relative;
+  display:block;
+  flex:0 0 34px;
+  width:34px;
+  height:34px;
+  overflow:hidden;
+  border-radius:10px;
+  background:linear-gradient(145deg, #dbe5ff, #8f8ad2 52%, #5b72d8);
+  filter:brightness(var(--preset-brightness));
+}
+.user-preset-preview img {
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.user-preset-preview-fallback { display:block; width:100%; height:100%; }
+.user-preset-preview-shape {
+  position:absolute;
+  inset:5px 3px;
+  display:block;
+  overflow:hidden;
+  border:1px solid rgb(255 255 255 / calc(.28 + var(--preset-specular) * .3));
+  border-radius:8px;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / calc(.16 + var(--preset-specular) * .3)), transparent 46%),
+    linear-gradient(115deg, transparent 36%, rgb(255 255 255 / calc(.12 + var(--preset-dispersion) * .2)) 48%, transparent 62%),
+    var(--preset-fill);
+  box-shadow:inset 0 1px 1px #ffffff80, inset 0 -2px 3px #27255120, 0 2px 4px #36315b25;
+  backdrop-filter:blur(var(--preset-blur)) saturate(1.45);
+  -webkit-backdrop-filter:blur(var(--preset-blur)) saturate(1.45);
+  transform:skewX(-7deg) rotate(-3deg);
+}
+.user-preset-preview-shape::after {
+  content:"";
+  position:absolute;
+  top:2px;
+  left:3px;
+  width:65%;
+  height:1px;
+  border-radius:8px;
+  background:rgb(255 255 255 / calc(.35 + var(--preset-specular) * .4));
+  transform:rotate(-8deg);
+}
+.user-preset-delete {
+  position:absolute;
+  top:6px;
+  right:6px;
+  display:grid;
+  place-items:center;
+  width:20px;
+  height:20px;
+  padding:0;
+  border:1px solid #ffffffb8;
+  border-radius:7px;
+  background:#fff;
+  color:#777584;
+  font-size:12px;
+  line-height:1;
+  opacity:0;
+  transform:scale(.82);
+  pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease, background .16s ease;
+}
+.user-preset-card:hover .user-preset-delete,
+.user-preset-card:focus-within .user-preset-delete,
+.user-preset-delete:focus-visible {
+  opacity:1;
+  transform:scale(1);
+  pointer-events:auto;
+}
+.user-preset-delete:hover { background:#f0eff8; color:#514b78; }
+.user-preset-edit {
+  position:absolute;
+  right:6px;
+  bottom:6px;
+  display:grid;
+  place-items:center;
+  width:20px;
+  height:20px;
+  padding:0;
+  border:1px solid #dedbe9;
+  border-radius:7px;
+  background:#fff;
+  color:#777584;
+  opacity:0;
+  transform:scale(.82);
+  pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease, background .16s ease;
+}
+.user-preset-card:hover .user-preset-edit,
+.user-preset-card:focus-within .user-preset-edit,
+.user-preset-edit:focus-visible {
+  opacity:1;
+  transform:scale(1);
+  pointer-events:auto;
+}
+.user-preset-edit:hover { background:#f0eff8; color:#514b78; }
+.user-preset-description-editor {
+  position:absolute;
+  left:53px;
+  right:31px;
+  bottom:7px;
+  z-index:2;
+}
+.user-preset-description-input {
+  display:block;
+  width:100%;
+  height:22px;
+  min-height:22px;
+  padding:2px 6px;
+  border:1px solid #d8d4e8;
+  border-radius:7px;
+  background:#fff;
+  color:#545460;
+  font-size:10px;
+}
+.save-preset-form input:focus-visible,
+.user-preset-description-input:focus-visible {
+  outline:0;
+  border-color:#d8d4e8;
+  box-shadow:none;
+}
+
+@media(max-width:280px) {
+  main { padding:12px 9px 165px; }
+  header { gap:6px; margin-bottom:16px; }
+  h1 { font-size:18px; }
+  .brand { gap:5px; }
+  .brand img { width:23px; height:23px; }
+  .preset-grid { grid-template-columns:minmax(0,1fr); }
+  .preset strong { font-size:12px; }
+  .card-heading { flex-wrap:wrap; gap:4px; }
+  .save-preset-form { margin-left:auto; }
+  footer { padding:10px 9px 12px; }
+  .footer-actions { grid-template-columns:34px 34px minmax(0,1fr); gap:5px; }
+  .primary { font-size:11px; }
+}
+
+/* Use one compact rounded-rectangle language for controls; only status dots and range thumbs remain circular. */
+.about-link,
+.preview-switch,
+.secondary,
+.primary,
+.preset,
+.user-preset-card,
+details,
+.preview,
+.user-preset-preview,
+.user-preset-delete,
+.user-preset-edit,
+.user-preset-description-input { border-radius:10px; }
+.preview-switch button,
+.switch-thumb,
+.text-button,
+.reset-one,
+select,
+input[type=number],
+input[type=color],
+input[type=range],
+.save-preset-form input,
+.user-preset-preview-shape,
+.preview small,
+.preset-help-tooltip { border-radius:8px; }
+
+/* Parameter hints use the same right-opening white bubble as the preset hint. */
+.info-tip {
+  position:relative;
+  display:inline-grid;
+  place-items:center;
+  flex:0 0 auto;
+  width:16px;
+  height:16px;
+  border:1px solid #a69bd0;
+  border-radius:50%;
+  color:#756aa5;
+  font-size:11px;
+  font-weight:700;
+  line-height:1;
+  cursor:help;
+}
+.info-tip-tooltip {
+  position:fixed;
+  z-index:30;
+  top:var(--tooltip-top, 12px);
+  left:var(--tooltip-left, 12px);
+  width:var(--tooltip-width, min(230px, calc(100vw - 24px)));
+  max-width:calc(100vw - 24px);
+  padding:8px 10px;
+  border:1px solid #dedbeb;
+  border-radius:8px;
+  background:#fff;
+  box-shadow:0 8px 20px #39335a22;
+  color:#545460;
+  font-size:10px;
+  font-weight:400;
+  line-height:1.55;
+  text-align:left;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(-3px);
+  pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease, visibility .16s ease;
+}
+.info-tip:hover .info-tip-tooltip,
+.info-tip:focus-visible .info-tip-tooltip {
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0);
+}
+.info-tip:focus-visible { outline:0; box-shadow:0 0 0 2px #aaa0d433; }
+.parameter-label,
+.setting-label { display:flex; align-items:center; gap:6px; min-width:0; }
+.parameter-label label,
+.setting-label > span:first-child { min-width:0; }
+
+/* Keep the whole advanced area mounted so both opening and closing can animate. */
+#advanced-settings { animation:none; }
+.advanced-panel {
+  display:grid;
+  grid-template-rows:0fr;
+  opacity:0;
+  pointer-events:none;
+  transition:grid-template-rows .28s ease, opacity .2s ease;
+}
+.advanced-panel.open {
+  grid-template-rows:1fr;
+  opacity:1;
+  pointer-events:auto;
+}
+.advanced-panel-inner {
+  min-height:0;
+  overflow:hidden;
+}
+.advanced-panel.open > .advanced-panel-inner { overflow:visible; }
+
+/* Custom disclosure panels animate in both directions and remain keyboard-safe when closed. */
+.settings-details {
+  margin-top:9px;
+  padding:0 13px;
+  border:1px solid #e9e9ef;
+  border-radius:10px;
+  background:#fafafb;
+}
+.settings-details-summary {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  padding:13px 0;
+  border:0;
+  background:none;
+  color:#33343e;
+  font-size:12px;
+  font-weight:600;
+  text-align:left;
+}
+.settings-details-content {
+  display:grid;
+  grid-template-rows:0fr;
+  opacity:0;
+  transition:grid-template-rows .24s ease, opacity .18s ease;
+}
+.settings-details.open .settings-details-content {
+  grid-template-rows:1fr;
+  opacity:1;
+}
+.settings-details-inner {
+  min-height:0;
+  overflow:hidden;
+}
+.settings-details.open .settings-details-inner { overflow:visible; }
+.settings-details-inner > .parameter,
+.settings-details-inner > .select-row,
+.settings-details-inner > .check {
+  border-top:1px solid #ececf1;
+}
+.settings-details-inner > .select-row,
+.settings-details-inner > .check {
+  margin:0;
+  padding:12px 0;
+}
+
+/* Native color inputs otherwise render an extra inset rectangular swatch. */
+input[type=color] {
+  appearance:none;
+  -webkit-appearance:none;
+  padding:0;
+  border-radius:10px;
+  background:transparent;
+  overflow:hidden;
+}
+input[type=color]::-webkit-color-swatch-wrapper { padding:0; }
+input[type=color]::-webkit-color-swatch,
+input[type=color]::-moz-color-swatch {
+  border:0;
+  border-radius:9px;
+}
+
+/* Numeric controls keep their normal border without the browser's blue focus ring. */
+.parameter-inputs input[type=number]:focus,
+.parameter-inputs input[type=number]:focus-visible,
+.quick-settings input[type=number]:focus,
+.quick-settings input[type=number]:focus-visible {
+  outline:0;
+  border-color:#d8d4e8;
+  box-shadow:none;
+  background:#fff;
+}
+
+/* Shared custom select: predictable styling and an animatable option panel. */
+.select-control {
+  position:relative;
+  flex:0 1 auto;
+  width:min(154px, 100%);
+  min-width:0;
+}
+.select-trigger {
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  min-height:30px;
+  padding:4px 27px 4px 8px;
+  overflow:hidden;
+  border:1px solid #e5e4ec;
+  border-radius:10px;
+  background:#fafafb;
+  color:#545460;
+  font-size:12px;
+  text-align:left;
+  white-space:nowrap;
+  transition:background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.select-trigger > span:first-child { overflow:hidden; text-overflow:ellipsis; }
+.select-trigger:hover,
+.select-control.open .select-trigger { border-color:#c9c3e2; background:#fff; }
+.select-trigger:focus,
+.select-trigger:focus-visible { outline:0; box-shadow:none; }
+.select-control.open .select-trigger { box-shadow:0 0 0 2px #aaa0d422; }
+.select-chevron {
+  position:absolute;
+  right:10px;
+  width:7px;
+  height:7px;
+  border-right:1.5px solid #7771a1;
+  border-bottom:1.5px solid #7771a1;
+  transform:translateY(-2px) rotate(45deg);
+  transition:transform .2s ease;
+}
+.select-control.open .select-chevron { transform:translateY(2px) rotate(225deg); }
+.select-menu {
+  position:absolute;
+  z-index:40;
+  top:calc(100% + 4px);
+  right:0;
+  width:100%;
+  display:grid;
+  grid-template-rows:0fr;
+  opacity:0;
+  transform:translateY(-4px);
+  pointer-events:none;
+  transition:grid-template-rows .2s ease, opacity .16s ease, transform .2s ease;
+}
+.select-control.open .select-menu {
+  grid-template-rows:1fr;
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+.select-menu-inner {
+  min-height:0;
+  max-height:190px;
+  overflow:hidden auto;
+  padding:4px;
+  border:1px solid #dedbeb;
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 8px 20px #39335a22;
+}
+.select-option {
+  display:block;
+  width:100%;
+  min-height:28px;
+  padding:5px 8px;
+  border:0;
+  border-radius:7px;
+  background:#fff;
+  color:#545460;
+  font-size:11px;
+  text-align:left;
+  white-space:nowrap;
+}
+.select-option:hover,
+.select-option[aria-selected=true] { background:#f0effb; color:#514b78; }
+.select-option:focus,
+.select-option:focus-visible { outline:0; box-shadow:none; }
+
+.apply-button { display:flex; align-items:center; justify-content:center; gap:7px; }
+.loading-spinner {
+  display:inline-block;
+  width:13px;
+  height:13px;
+  flex:0 0 auto;
+  border:2px solid #ffffff55;
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:liquidslide-spin .72s linear infinite;
+}
+@keyframes liquidslide-spin { to { transform:rotate(360deg); } }
+
+@media (prefers-reduced-motion:reduce) {
+  .loading-spinner { animation:none; }
+  .select-menu,
+  .select-chevron,
+  .advanced-panel,
+  .settings-details-content { transition:none; }
+}
+
+/* Final control polish: keep the color swatch single-layered and compact. */
+.color-control {
+  position:relative;
+  display:block;
+  flex:0 0 40px;
+  width:40px;
+  height:27px;
+  overflow:hidden;
+  border:1px solid #e5e4ec;
+  border-radius:10px;
+  box-shadow:inset 0 0 0 1px rgb(255 255 255 / .28);
+  cursor:pointer;
+}
+.color-control input[type=color] {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  padding:0;
+  border:0;
+  opacity:0;
+  cursor:pointer;
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.color-control input[type=color]:focus,
+.color-control input[type=color]:focus-visible { outline:0; box-shadow:none!important; }
+
+/* The dropdown contains only a few options; never flash a native scrollbar while opening. */
+.select-control.open .select-trigger { box-shadow:none; }
+.select-menu-inner {
+  max-height:none;
+  overflow:hidden;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+.select-menu-inner::-webkit-scrollbar { display:none; width:0; height:0; }
+
+/* Expand the name field from the save button and crossfade its action label. */
+.save-preset-form { gap:0; }
+.save-preset-form.editing { gap:5px; }
+.save-preset-form input {
+  width:0;
+  min-width:0;
+  height:30px;
+  min-height:30px;
+  padding:4px 0;
+  border-width:0;
+  opacity:0;
+  transform:translateX(8px) scaleX(.2);
+  transform-origin:right center;
+  pointer-events:none;
+  transition:width .22s cubic-bezier(.22,1,.36,1), padding .22s ease,
+    border-color .18s ease, opacity .16s ease, transform .22s cubic-bezier(.22,1,.36,1);
+}
+.save-preset-form.editing input {
+  width:min(110px,25vw);
+  padding:4px 8px;
+  border-width:1px;
+  opacity:1;
+  transform:none;
+  pointer-events:auto;
+}
+.save-preset-button { position:relative; overflow:hidden; }
+.save-preset-label {
+  position:relative;
+  display:grid;
+  place-items:center;
+  width:100%;
+  height:100%;
+}
+.save-preset-label > span {
+  grid-area:1 / 1;
+  transition:opacity .16s ease, transform .2s ease;
+}
+.save-preset-label .label-hidden { opacity:0; transform:translateY(3px); }
+
+.reset-custom-button {
+  flex:0 0 auto;
+  width:76px;
+  height:30px;
+  min-height:30px;
+  padding:0 11px;
+  border-radius:10px;
+  font-size:10px;
+}
+
+/* The fixed action strip should read as a translucent glass shelf over the page. */
+footer {
+  background:rgb(255 255 255 / .72);
+  border-top:1px solid rgb(255 255 255 / .78);
+  box-shadow:0 -8px 28px #4e4b9212;
+  backdrop-filter:blur(20px) saturate(1.3);
+  -webkit-backdrop-filter:blur(20px) saturate(1.3);
+}
+
+/* The color control is a single rounded button; Chromium's inset color swatch
+   is not needed because the picker is rendered by the task pane itself. */
+.color-control {
+  appearance:none;
+  -webkit-appearance:none;
+  padding:0;
+  border:1px solid #e5e4ec;
+  background-clip:padding-box;
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.color-control:hover:enabled { border-color:#c9c3e2; box-shadow:0 2px 8px #4a467d18; }
+.color-control:focus,
+.color-control:focus-visible { outline:0; box-shadow:none; }
+
+/* Stable in-pane fallback for hosts where PowerPoint's native gallery cannot
+   be kept open from a WebView task pane. It supports both precise text input
+   and a compact palette without the browser's inset color-swatch UI. */
+.color-picker {
+  position:relative;
+  z-index:12;
+  flex:0 0 auto;
+}
+/* The fixed action shelf should not cover the opened palette. Add temporary
+   scroll room so the user can move the whole picker above that shelf. */
+main:has(.color-picker.open) { padding-bottom:505px; }
+.color-picker-menu {
+  position:absolute;
+  z-index:50;
+  top:calc(100% + 7px);
+  right:0;
+  width:238px;
+  padding:12px;
+  border:1px solid #dedbeb;
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 12px 28px #39335a24;
+  color:#545460;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(-5px) scale(.98);
+  transform-origin:top right;
+  pointer-events:none;
+  transition:opacity .18s ease, transform .2s cubic-bezier(.22,1,.36,1), visibility .18s ease;
+}
+.color-picker.open .color-picker-menu {
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0) scale(1);
+  pointer-events:auto;
+}
+.color-picker-heading,
+.color-palette-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.color-picker-heading strong { font-size:12px; font-weight:600; color:#3f4050; }
+.color-picker-heading span { font-size:10px; color:#888598; font-variant-numeric:tabular-nums; }
+.color-picker-tabs {
+  position:relative;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4px;
+  margin-top:9px;
+  padding:3px;
+  border-radius:8px;
+  background:#f2f1f8;
+}
+.color-picker-tabs::before {
+  content:"";
+  position:absolute;
+  z-index:0;
+  top:3px;
+  bottom:3px;
+  left:3px;
+  width:calc(50% - 5px);
+  border-radius:7px;
+  background:#fff;
+  box-shadow:0 2px 7px #39335a12;
+  transform:translateX(0);
+  transition:transform .22s cubic-bezier(.22,1,.36,1);
+}
+.color-picker-tabs.rgb::before { transform:translateX(100%); }
+.color-picker-tabs button {
+  position:relative;
+  z-index:1;
+  min-height:25px;
+  padding:3px 6px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:#858196;
+  font-size:10px;
+  font-weight:600;
+}
+.color-picker-tabs button.active { background:transparent; color:#514b78; box-shadow:none; }
+.color-picker-tabs button:focus,
+.color-picker-tabs button:focus-visible { outline:0; }
+.color-input-row,
+.color-rgb-fields label {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-top:9px;
+  color:#777587;
+  font-size:10px;
+}
+.color-input-row > span { width:22px; }
+.color-input-row input,
+.color-rgb-fields input {
+  width:100%;
+  min-width:0;
+  min-height:28px;
+  padding:4px 7px;
+  border:1px solid #e1dfeb;
+  border-radius:8px;
+  background:#fafafb;
+  color:#4e4d5c;
+  font-size:11px;
+  font-variant-numeric:tabular-nums;
+}
+.color-rgb-fields { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+.color-rgb-fields label { display:grid; grid-template-columns:auto 1fr; gap:4px; }
+.color-rgb-fields label span { align-self:center; }
+.color-input-row input:focus,
+.color-input-row input:focus-visible,
+.color-rgb-fields input:focus,
+.color-rgb-fields input:focus-visible { outline:0; border-color:#d8d4e8; box-shadow:none; background:#fff; }
+.color-palette-heading { margin-top:12px; }
+.color-palette-heading span { font-size:10px; font-weight:600; color:#666477; }
+.color-palette-heading small { font-size:9px; color:#aaa7b4; }
+.color-swatch-grid {
+  display:grid;
+  grid-template-columns:repeat(8, 1fr);
+  gap:5px;
+  margin-top:7px;
+}
+.color-swatch {
+  width:100%;
+  aspect-ratio:1;
+  min-width:0;
+  padding:0;
+  border:1px solid #dedde5;
+  border-radius:6px;
+  box-shadow:inset 0 0 0 1px #ffffff38;
+}
+.color-swatch:hover { transform:translateY(-1px); box-shadow:0 3px 8px #39335a24; }
+.color-swatch.active { border-color:#7771c1; box-shadow:0 0 0 2px #7771c133; }
+.color-swatch:focus,
+.color-swatch:focus-visible { outline:0; }
+
+/* Keep the color label typographically identical to slider parameter labels. */
+.quick-settings .select-row,
+.quick-settings .select-row .setting-label > span:first-child,
+.parameter-label > span:first-child,
+.parameter-label > label {
+  font-size:12px;
+  font-weight:400;
+  line-height:1.5;
+  color:#545460;
+}
+
+/* A custom/freeform shape has no real-background preview yet: dim the whole
+   canvas while keeping the source switch available above the overlay. */
+.preview-unsupported {
+  position:absolute;
+  z-index:2;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:rgb(25 26 52 / .68);
+  backdrop-filter:brightness(.58) saturate(.72) blur(1px);
+  -webkit-backdrop-filter:brightness(.58) saturate(.72) blur(1px);
+}
+.preview-unsupported-card {
+  display:grid;
+  gap:5px;
+  max-width:250px;
+  padding:12px 14px;
+  border:1px solid rgb(255 255 255 / .35);
+  border-radius:10px;
+  background:rgb(255 255 255 / .9);
+  box-shadow:0 8px 22px #17183255;
+  color:#3d3b5b;
+  text-align:center;
+}
+.preview-unsupported-card strong { font-size:12px; font-weight:650; }
+.preview-unsupported-card span { font-size:10px; line-height:1.55; }

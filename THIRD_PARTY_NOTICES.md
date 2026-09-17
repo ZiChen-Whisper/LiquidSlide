@@ -4,7 +4,7 @@ LiquidSlide original integration/UI code is MIT licensed (see LICENSE). External
 
 ## Liquid DOM
 
-Rendering uses [Liquid DOM](https://github.com/AndrewPrifer/liquid-dom), created by Andrew Prifer (copyright holder: Andras Prifer), through `@liquid-dom/core@0.1.1` and `@liquid-dom/layout@0.2.0`.
+Rendering uses [Liquid DOM](https://github.com/AndrewPrifer/liquid-dom), created by Andrew Prifer (copyright holder: Andras Prifer), through a locally maintained contour-input extension of `@liquid-dom/core@0.1.1` and `@liquid-dom/layout@0.2.0`. The modified core is in `vendor/liquid-dom`; its upstream MIT notice, baseline hashes, and change patch are retained there. The original refraction and lighting algorithms remain in use.
 
 Verified on 2026-09-07: upstream added MIT licenses at the root and in `packages/core/LICENSE` in commit [`1eeda968a3999d48b281ccb5835585f5bcd2fbde`](https://github.com/AndrewPrifer/liquid-dom/commit/1eeda968a3999d48b281ccb5835585f5bcd2fbde). The previously recorded missing-license restriction is resolved. The locked npm core package predates the license files, so the upstream texts are explicitly included in the installer as `LiquidDOM-LICENSE.txt` and `LiquidDOM-Core-LICENSE.txt`. The layout package's own MIT text is included separately.
 

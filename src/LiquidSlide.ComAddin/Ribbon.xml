@@ -3,13 +3,17 @@
     <tabs>
       <tab id="LiquidSlideTab" label="LiquidSlide">
         <group id="LiquidSlideMaterials" label="玻璃材质">
-          <button id="LiquidSlideClear" label="经典通透" tag="clear" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用经典通透玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
-          <button id="LiquidSlideWhite" label="白色玻璃" tag="white" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用白色玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
-          <button id="LiquidSlideBlack" label="黑色玻璃" tag="black" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用黑色玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
-          <button id="LiquidSlideFrost" label="柔雾磨砂" tag="frost" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用柔雾磨砂玻璃" supertip="选择一个正圆或圆角矩形后点击。右键可添加到快速访问工具栏。" />
+          <button id="LiquidSlideClear" label="通透玻璃" tag="clear" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用通透玻璃" supertip="选择一个自选图形或自由曲线图形后点击。右键可添加到快速访问工具栏。" />
+          <button id="LiquidSlideWhite" label="珍珠玻璃" tag="white" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用珍珠玻璃" supertip="选择一个自选图形或自由曲线图形后点击。右键可添加到快速访问工具栏。" />
+          <button id="LiquidSlideBlack" label="曜黑玻璃" tag="black" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用曜黑玻璃" supertip="选择一个自选图形或自由曲线图形后点击。右键可添加到快速访问工具栏。" />
+          <button id="LiquidSlideFrost" label="磨砂玻璃" tag="frost" size="large" getImage="GetRibbonImage" onAction="OnApplyPreset" screentip="应用磨砂玻璃" supertip="选择一个自选图形或自由曲线图形后点击。右键可添加到快速访问工具栏。" />
         </group>
         <group id="LiquidSlidePanel" label="材质工作台">
           <button id="LiquidSlideOpen" tag="panel" label="打开面板" size="large" getImage="GetRibbonImage" onAction="OnOpenPanel" screentip="打开 LiquidSlide" supertip="重新打开材质预览与参数面板。右键可添加到快速访问工具栏。" />
+        </group>
+        <group id="LiquidSlideShape" label="图形调整">
+          <button id="LiquidSlideShadow" label="添加阴影" tag="shadow" size="large" getImage="GetRibbonImage" onAction="OnApplyShadow" screentip="添加图形阴影" supertip="给当前选中的单个图形添加 PowerPoint 原生柔和阴影。" />
+          <button id="LiquidSlideOutline" label="去除框线" tag="outline" size="large" getImage="GetRibbonImage" onAction="OnRemoveOutline" screentip="去除图形框线" supertip="去除当前选中图形的 PowerPoint 外框线，保留玻璃自身高光。" />
         </group>
         <group id="LiquidSlideHelp" label="帮助">
           <button id="LiquidSlideAbout" label="关于" size="large" tag="about" getImage="GetRibbonImage" onAction="OnAbout" screentip="关于 LiquidSlide" supertip="查看版本、项目仓库、作者联系方式与开源致谢。" />

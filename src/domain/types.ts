@@ -1,4 +1,4 @@
-export type ShapeMode = "circle" | "roundedRectangle";
+export type ShapeMode = "circle" | "roundedRectangle" | "custom";
 export type SurfaceProfile = "convex" | "concave" | "lip";
 
 export interface RgbaColor {
@@ -12,6 +12,7 @@ export interface LiquidGlassSettingsV1 {
   schemaVersion: 1;
   shapeMode: ShapeMode;
   outputScale: 1 | 2 | 3;
+  brightness: number;
   blur: number;
   bezelWidth: number;
   thickness: number;
@@ -36,6 +37,8 @@ export interface LiquidGlassSettingsV1 {
 }
 
 export interface SelectedShapeInfo {
+  /** Native contour: SVG data URL; legacy PNG base64 is accepted by the renderer. */
+  maskBase64?: string;
   presentationId?: string;
   zOrder?: number;
   shapeMode?: ShapeMode;

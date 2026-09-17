@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -170,7 +171,11 @@ namespace LiquidSlide.ComAddin
                     args.Cancel = true;
                     OpenExternalLink(args.Uri);
                 };
-                webView.CoreWebView2.Navigate("https://liquidslide.local/taskpane.html");
+                string pageRevision;
+                using (var sha = SHA256.Create())
+                    pageRevision = BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(Path.Combine(webRoot, "taskpane.html")))).Replace("-", "");
+                StartupDiagnostics.Write("Panel revision=contour-vector-4; web=" + webRoot + "; page=" + pageRevision);
+                webView.CoreWebView2.Navigate("https://liquidslide.local/taskpane.html?build=" + pageRevision);
             }
             catch (Exception exception)
             {
@@ -223,6 +228,7 @@ namespace LiquidSlide.ComAddin
                         if (payload.TryGetValue("error", out var error) && error != null && bridge.IsOwnerActive)
                             MessageBox.Show(Convert.ToString(error), "LiquidSlide", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         result = true; break;
+                    case "getRuntimeInfo": result = new { revision = "contour-vector-4" }; break;
                     case "inspectSelection": result = bridge.InspectSelection(); break;
                     case "captureBackground":
                         result = bridge.CaptureBackground(payload);
@@ -242,5 +248,6 @@ namespace LiquidSlide.ComAddin
             }
             finally { handlingRequest = false; }
         }
+
     }
 }

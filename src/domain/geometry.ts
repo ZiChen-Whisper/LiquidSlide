@@ -19,6 +19,7 @@ export function validateShape(shape: SelectedShapeInfo, mode: ShapeMode): void {
 }
 
 export function getCornerRadiusCssPixels(shape: SelectedShapeInfo, mode: ShapeMode): number {
+  if (mode === "custom") return 0;
   const shortest = pointsToCssPixels(Math.min(shape.width, shape.height));
   if (mode === "circle") return shortest / 2;
   // PowerPoint adjustment values are normalized. The final image fill remains

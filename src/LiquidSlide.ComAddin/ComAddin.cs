@@ -84,6 +84,27 @@ namespace LiquidSlide.ComAddin
             catch (Exception error) { ShowError(error); }
         }
 
+        public void OnApplyShadow(Office.IRibbonControl control)
+        {
+            try { ApplyShapeEdit(control, removeOutline: false); }
+            catch (Exception error) { ShowError(error); }
+        }
+
+        public void OnRemoveOutline(Office.IRibbonControl control)
+        {
+            try { ApplyShapeEdit(control, removeOutline: true); }
+            catch (Exception error) { ShowError(error); }
+        }
+
+        private void ApplyShapeEdit(Office.IRibbonControl control, bool removeOutline)
+        {
+            var window = CommandWindow(control);
+            var bridge = new PowerPointBridge(application, window.HWND);
+            if (!bridge.IsOwnerActive) throw new InvalidOperationException("请在当前 PowerPoint 窗口中选择图形后重试。");
+            if (removeOutline) bridge.RemoveOutlineFromSelection();
+            else bridge.ApplyShadowToSelection();
+        }
+
         public void OnAbout(Office.IRibbonControl control) { AboutWindow.ShowAbout(); }
 
         private PowerPoint.DocumentWindow CommandWindow(Office.IRibbonControl control)

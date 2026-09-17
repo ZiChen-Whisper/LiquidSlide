@@ -1,3 +1,4 @@
+import { createContourDistanceField } from "./ContourDistanceField";
 import { Glass, Scene, WebGpuGlassCore } from "@liquid-dom/core";
 import { createGlassContainer } from "./material";
 import { calculatePaddingCssPixels, getCornerRadiusCssPixels, pointsToCssPixels } from "../domain/geometry";
@@ -55,7 +56,16 @@ export class WebGpuLiquidDomRenderer implements LiquidDomRenderer {
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
     if (!adapter) throw new Error("没有找到可用的 WebGPU 图形适配器。");
     this.device = await adapter.requestDevice();
-    this.core = new WebGpuGlassCore({ device: this.device, format: "rgba8unorm" });
+    this.device.pushErrorScope("validation");
+    try {
+      this.core = new WebGpuGlassCore({ device: this.device, format: "rgba8unorm" });
+    } finally {
+      const error = await this.device.popErrorScope();
+      if (error) {
+        this.destroy();
+        throw new Error(`玻璃渲染管线初始化失败：${error.message}`);
+      }
+    }
   }
 
   async render(request: RenderRequest): Promise<RenderResult> {
@@ -101,7 +111,12 @@ export class WebGpuLiquidDomRenderer implements LiquidDomRenderer {
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING
     });
 
+    let contour: Awaited<ReturnType<typeof createContourDistanceField>> | null = null;
     try {
+      if (shape.shapeMode === "custom") {
+        if (!shape.maskBase64) throw new Error("没有读取到图形轮廓，请重新选择图形。");
+        contour = await createContourDistanceField(device, shape.maskBase64, shapeWidth, shapeHeight, scale, padding);
+      }
       device.queue.copyExternalImageToTexture({ source: backdropBitmap }, { texture: backdropTexture }, [pixelWidth, pixelHeight]);
       const scene = new Scene();
       const container = createGlassContainer(settings);
@@ -114,16 +129,23 @@ export class WebGpuLiquidDomRenderer implements LiquidDomRenderer {
         cornerSmoothing: 0
       }));
       scene.add(container);
-      core.render({
+      device.pushErrorScope("validation");
+      try {
+        core.render({
         scene,
         // Core target dimensions are physical pixels; dpr scales scene geometry.
         width: pixelWidth,
         height: pixelHeight,
         dpr: scale,
         outputTexture,
-        backdropTexture
-      });
-      await device.queue.onSubmittedWorkDone();
+        backdropTexture,
+        contour
+        });
+        await device.queue.onSubmittedWorkDone();
+      } finally {
+        const error = await device.popErrorScope();
+        if (error) throw new Error(`玻璃渲染失败：${error.message}`);
+      }
       const rendered = await readTextureToCanvas(device, outputTexture, pixelWidth, pixelHeight);
       const resultCanvas = cropCenter(rendered, pixelWidth, pixelHeight, padding, shapeWidth, shapeHeight, scale, localBackdrop);
       return {
@@ -137,6 +159,7 @@ export class WebGpuLiquidDomRenderer implements LiquidDomRenderer {
         }
       };
     } finally {
+      contour?.texture.destroy();
       backdropBitmap.close();
       backdropTexture.destroy();
       outputTexture.destroy();

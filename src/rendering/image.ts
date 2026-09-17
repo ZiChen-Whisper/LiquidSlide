@@ -6,7 +6,18 @@ export async function imageFromBase64(base64: string): Promise<ImageBitmap> {
   const binary = atob(normalized);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return createImageBitmap(new Blob([bytes], { type: "image/png" }));
+  const type = base64.startsWith("data:image/svg+xml;") ? "image/svg+xml" : "image/png";
+  const blob = new Blob([bytes], { type });
+  if (type !== "image/svg+xml") return createImageBitmap(blob);
+  // Chromium's ImageBitmap decoder does not directly decode SVG blobs on every
+  // WebView2 version. Decode through an image element before making the bitmap.
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    return await createImageBitmap(image);
+  } finally { URL.revokeObjectURL(url); }
 }
 
 export function buildLocalBackdrop(
@@ -61,14 +72,18 @@ export function cropCenter(
   canvas.height = Math.max(1, Math.round(targetHeightCssPixels * outputScale));
   const context = canvas.getContext("2d");
   if (!context) throw new Error("无法创建输出画布。");
-  const start = Math.round(paddingCssPixels * outputScale);
+  const start = paddingCssPixels * outputScale;
+  const sourceWidthExact = targetWidthCssPixels * outputScale;
+  const sourceHeightExact = targetHeightCssPixels * outputScale;
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
   // PowerPoint applies the final shape mask. Keep the sampled slide background
   // under transparent glass pixels so small radius differences never expose an
   // old fill or a rectangular transparent corner.
   if (fallbackBackdrop) {
-    context.drawImage(fallbackBackdrop, start, start, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+    context.drawImage(fallbackBackdrop, start, start, sourceWidthExact, sourceHeightExact, 0, 0, canvas.width, canvas.height);
   }
-  context.drawImage(source, start, start, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  context.drawImage(source, start, start, sourceWidthExact, sourceHeightExact, 0, 0, canvas.width, canvas.height);
   void sourceWidth;
   void sourceHeight;
   return canvas;

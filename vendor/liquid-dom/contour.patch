@@ -1,0 +1,161 @@
+--- a/index.js
++++ b/index.js
+@@ -281,6 +281,7 @@
+   container: vec4("opacity"),
+   shape: vec4("smoothing", "bezelWidth", "shapeCount", "surfaceProfile"),
+   sdf: vec4("normalDivergenceBlendPower", "normalDivergenceBlendEnabled"),
++  contour: vec4("enabled", "pixelsPerCssPixel", "paddingPixels"),
+   glass: vec4("thickness", "displacementFactor", "ior", "dispersion"),
+   content: vec4("ior", "depth"),
+   lighting: vec4("x", "y"),
+@@ -543,7 +544,30 @@
+   return cornerDistance + min(max(q.x, q.y), 0.0) - clampedRadius;
+ }
+ 
++// LiquidSlide extension: only the shape distance source changes. All optical
++// passes below retain the upstream implementation and use this same field.
++@group(0) @binding(8) var contourDistances: texture_2d<u32>;
++
++fn contourDistanceAt(localPos: vec2f) -> f32 {
++  let dimensions = vec2i(textureDimensions(contourDistances));
++  let position = localPos * globals.contour.y + vec2f(globals.contour.z - 0.5);
++  let clamped = clamp(position, vec2f(0.0), vec2f(dimensions - vec2i(1)));
++  let base = vec2i(floor(clamped));
++  let next = min(base + vec2i(1), dimensions - vec2i(1));
++  let fraction = fract(clamped);
++  let top = mix(bitcast<f32>(textureLoad(contourDistances, base, 0).r),
++                bitcast<f32>(textureLoad(contourDistances, vec2i(next.x, base.y), 0).r), fraction.x);
++  let bottom = mix(bitcast<f32>(textureLoad(contourDistances, vec2i(base.x, next.y), 0).r),
++                   bitcast<f32>(textureLoad(contourDistances, next, 0).r), fraction.x);
++  // Continue positive exterior distances beyond the padded field, rather than
++  // extending the border texel into an artificial flat region.
++  return (mix(top, bottom, fraction.y) + length(position - clamped)) / globals.contour.y;
++}
++
+ fn shapeDistanceFromLocal(shape: ShapeData, localPos: vec2f) -> f32 {
++  if (globals.contour.x > 0.5) {
++    return contourDistanceAt(localPos) * shape.inverse0.w;
++  }
+   let halfSize = shape.geometry.xy;
+   let localDistance = sdSmoothRoundRect(
+     localPos - halfSize,
+@@ -2851,6 +2875,8 @@
+   width = 1;
+   height = 1;
+   contentSource = null;
++  contour = null;
++  emptyContourTexture;
+   device;
+   format;
+   globalsBuffer;
+@@ -2875,6 +2901,10 @@
+   constructor({ device, format }) {
+     this.device = device;
+     this.format = format;
++    // Store IEEE float bits in r32uint; explicit loads need no optional float filtering.
++    this.emptyContourTexture = device.createTexture({ size: [1, 1], format: "r32uint",
++      usage: GPU_TEXTURE_USAGE.TEXTURE_BINDING | GPU_TEXTURE_USAGE.COPY_DST });
++    device.queue.writeTexture({ texture: this.emptyContourTexture }, new Float32Array([1]), {}, [1, 1]);
+     this.sampler = device.createSampler({
+       magFilter: "linear",
+       minFilter: "linear",
+@@ -3027,12 +3057,14 @@
+     this.height = Math.max(1, Math.floor(options.height));
+     this.currentDpr = Math.max(options.dpr, 1e-4);
+     this.contentSource = options.contentSource ?? null;
++    this.contour = options.contour ?? null;
+     this.syncTargets();
+     const layers = options.layers ?? (options.scene ? getSortedSceneLayers(options.scene) : []);
+     try {
+       this.drawFrame(layers, options.outputTexture, options.backdropTexture ?? null);
+     } finally {
+       this.contentSource = null;
++      this.contour = null;
+     }
+   }
+   /** Releases GPU resources owned by the core. */
+@@ -3044,6 +3076,7 @@
+     destroyTargets(this.targets);
+     this.targets = null;
+     this.backdropMetricsTarget.destroy();
++    this.emptyContourTexture.destroy();
+     this.globalsBuffer.destroy();
+     this.shapesBuffer?.destroy();
+     this.emptyContentEntriesBuffer.destroy();
+@@ -3099,6 +3132,11 @@
+       sdf: {
+         normalDivergenceBlendPower: container.normalDivergenceBlendPower,
+         normalDivergenceBlendEnabled: container.normalDivergenceBlendEnabled ? 1 : 0
++      },
++      contour: {
++        enabled: this.contour ? 1 : 0,
++        pixelsPerCssPixel: this.contour?.pixelsPerCssPixel ?? 1,
++        paddingPixels: this.contour?.paddingPixels ?? 0
+       },
+       glass: {
+         thickness: container.thickness * dpr,
+@@ -3163,6 +3201,9 @@
+   packShapes(container, containerTransform) {
+     const dpr = this.currentDpr;
+     const glassLayers = getSortedGlassLayers(container);
++    if (this.contour && glassLayers.length !== 1) {
++      throw new Error("A contour render requires exactly one Glass per container.");
++    }
+     const bounds = createEmptyBounds();
+     let activeCount = 0;
+     this.ensureShapesBuffer(glassLayers.length);
+@@ -3228,7 +3269,8 @@
+     const rawLevel = this.targets.displacementBlur.levels[0];
+     const fieldBindGroup = createPipelineBindGroup(this.device, this.displacementFieldPipeline, [
+       { binding: 0, resource: this.globalsBuffer.bindingResource },
+-      { binding: 1, resource: this.shapesBuffer.bindingResource }
++      { binding: 1, resource: this.shapesBuffer.bindingResource },
++      { binding: 8, resource: (this.contour?.texture ?? this.emptyContourTexture).createView() }
+     ]);
+     drawFullscreenPass(encoder, {
+       pipeline: this.displacementFieldPipeline,
+@@ -3254,7 +3296,8 @@
+     const rawLevel = this.targets.shadowBlur.levels[0];
+     const maskBindGroup = createPipelineBindGroup(this.device, this.shadowMaskPipeline, [
+       { binding: 0, resource: this.globalsBuffer.bindingResource },
+-      { binding: 1, resource: this.shapesBuffer.bindingResource }
++      { binding: 1, resource: this.shapesBuffer.bindingResource },
++      { binding: 8, resource: (this.contour?.texture ?? this.emptyContourTexture).createView() }
+     ]);
+     drawFullscreenPass(encoder, {
+       pipeline: this.shadowMaskPipeline,
+@@ -3306,7 +3349,8 @@
+       { binding: 1, resource: this.shapesBuffer.bindingResource },
+       { binding: 2, resource: this.sampler },
+       { binding: 3, resource: blurredBackdrop.createView() },
+-      { binding: 4, resource: this.backdropMetricsBoundsBuffer.bindingResource }
++      { binding: 4, resource: this.backdropMetricsBoundsBuffer.bindingResource },
++      { binding: 8, resource: (this.contour?.texture ?? this.emptyContourTexture).createView() }
+     ]);
+     drawFullscreenPass(encoder, {
+       pipeline: this.backdropMetricsPipeline,
+@@ -3344,7 +3388,8 @@
+       { binding: 4, resource: blurredBackdrop.createView() },
+       { binding: 5, resource: contentTexture.createView() },
+       { binding: 6, resource: contentEntriesBindingResource },
+-      { binding: 7, resource: displacementField.createView() }
++      { binding: 7, resource: displacementField.createView() },
++      { binding: 8, resource: (this.contour?.texture ?? this.emptyContourTexture).createView() }
+     ]);
+     drawFullscreenPass(encoder, {
+       pipeline: this.glassPipeline,
+@@ -3808,4 +3853,3 @@
+   WebGpuGlassCore,
+   resolveSpecularWidthPx
+ };
+-//# sourceMappingURL=index.js.map--- a/index.d.ts
++++ b/index.d.ts
+@@ -63,6 +63,8 @@
+     outputTexture: GPUTexture;
+     backdropTexture?: GPUTexture | null;
+     contentSource?: WebGpuGlassContentSource | null;
++    /** LiquidSlide: single-shape signed distance field; negative inside, values in field pixels. */
++    contour?: { texture: GPUTexture; pixelsPerCssPixel: number; paddingPixels: number } | null;
+ };
+ /** Texture-in/texture-out WebGPU compositor for a liquid-glass scene graph. */
+ declare class WebGpuGlassCore {

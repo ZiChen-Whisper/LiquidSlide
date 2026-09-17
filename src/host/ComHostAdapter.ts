@@ -1,3 +1,4 @@
+import { normalizeSettings } from "../domain/settings";
 import type { LiquidGlassSettingsV1, SelectedShapeInfo } from "../domain/types";
 
 interface WebViewMessage {
@@ -28,6 +29,7 @@ export interface HostAdapter {
 
 export class ComHostAdapter implements HostAdapter {
   private nextId = 1;
+  private runtimeCheck?: Promise<void>;
   private pending = new Map<number, { resolve: (value: unknown) => void; reject: (reason: Error) => void }>();
   commandId?: string;
   onPreset?: (preset: string, shape: SelectedShapeInfo, commandId?: string) => void;
@@ -86,8 +88,20 @@ export class ComHostAdapter implements HostAdapter {
     });
   }
 
-  inspectSelection() {
-    return this.request<{ shape: SelectedShapeInfo; savedSettings: LiquidGlassSettingsV1 | null }>("inspectSelection");
+  private verifyRuntime() {
+    if (!this.runtimeCheck) this.runtimeCheck = this.request<{ revision: string }>("getRuntimeInfo").then(info => {
+      if (info.revision !== "contour-vector-4") throw new Error("宿主与面板版本不一致");
+    }).catch(() => {
+      this.runtimeCheck = undefined;
+      throw new Error("检测到旧版宿主或面板，请保存并完全关闭 PowerPoint 后重新安装矢量轮廓修订 4。");
+    });
+    return this.runtimeCheck;
+  }
+
+  async inspectSelection() {
+    await this.verifyRuntime();
+    const result = await this.request<{ shape: SelectedShapeInfo; savedSettings: LiquidGlassSettingsV1 | null }>("inspectSelection");
+    return { ...result, savedSettings: result.savedSettings ? normalizeSettings(result.savedSettings) : null };
   }
 
   captureBackground(shape: SelectedShapeInfo) {
@@ -98,4 +112,5 @@ export class ComHostAdapter implements HostAdapter {
     const result = await this.request<{ applied: boolean }>("applyFill", { ...this.target(shape), pngBase64, settings });
     return result.applied;
   }
+
 }

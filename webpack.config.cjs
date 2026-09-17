@@ -9,10 +9,10 @@ module.exports = async (_env, argv) => {
     entry: "./src/index.tsx",
     output: {
       clean: true,
-      filename: "taskpane.js",
+      filename: isDev ? "taskpane.js" : "taskpane.[contenthash:12].js",
       path: path.resolve(__dirname, "dist")
     },
-    resolve: { extensions: [".ts", ".tsx", ".js"] },
+    resolve: { extensions: [".ts", ".tsx", ".js"], alias: { "@liquid-dom/core$": path.resolve(__dirname, "vendor/liquid-dom/index.js") } },
     module: {
       rules: [
         { test: /\.tsx?$/, exclude: /node_modules/, use: { loader: "ts-loader", options: { transpileOnly: true } } },
